@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitoreo de Desconexiones y Alertas</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-mark">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div>
+      <h1>Monitoreo de Desconexiones y Alertas</h1>
+      <div class="sub"><span class="live-dot" id="liveDot" style="display:none;"></span><span id="lastUpdateText">Sin datos cargados</span></div>
+    </div>
+  </div>
+  <div class="file-controls">
+    <div class="loader" id="loader"><div class="spinner"></div><span id="loaderText">Cargando datos…</span></div>
+    <div class="file-meta" id="fileMeta"></div>
+    <button class="btn btn-primary" id="loadBtn">↻ Actualizar datos</button>
+    <input type="file" id="fileInput" accept=".csv,.xlsx,.xls">
+  </div>
+</div>
+
+<div class="empty-state" id="emptyState">
+  <h2 id="emptyTitle">Cargando datos…</h2>
+  <p id="emptyText">Obteniendo el archivo más reciente desde el repositorio. Esto solo toma un momento.</p>
+  <button class="btn btn-primary" id="emptyLoadBtn" style="display:none;">↻ Reintentar</button>
+  <div style="margin-top:6px;">
+    <span class="clear-link" id="manualFallbackLink">o cargar un archivo manualmente</span>
+  </div>
+</div>
+
+<div id="dashboard">
+
+  <div class="tabbar">
+    <button class="tab-btn active" data-tab="general">Resumen general</button>
+    <button class="tab-btn" data-tab="placa">Detalle por placa</button>
+  </div>
+
+  <div id="tab-general" class="tab-panel">
+
+  <div class="filters">
+    <div class="filter-group">
+      <label>Distribuidor</label>
+      <select id="fDistribuidor"></select>
+    </div>
+    <div class="filter-group">
+      <label>Distrito</label>
+      <select id="fDistrito"></select>
+    </div>
+    <div class="filter-group">
+      <label>Evento</label>
+      <select id="fEvento"></select>
+    </div>
+    <div class="filter-group">
+      <label>Desde</label>
+      <input type="date" id="fDesde">
+    </div>
+    <div class="filter-group">
+      <label>Hasta</label>
+      <input type="date" id="fHasta">
+    </div>
+    <div class="filter-group" style="flex:1; min-width:160px;">
+      <label>Buscar cliente / activo</label>
+      <input type="text" id="fSearch" placeholder="Nombre, código, IMEI...">
+    </div>
+    <div class="filter-group">
+      <label style="visibility:hidden;">·</label>
+      <label class="toggle-wrap" style="display:flex; align-items:center; gap:7px; cursor:pointer; text-transform:none; font-size:12.5px; color:var(--text); font-weight:400;">
+        <input type="checkbox" id="fOnlyOfficial" style="accent-color:var(--navy); width:15px; height:15px;">
+        Solo cortes ≥1h (criterio oficial de alerta)
+      </label>
+    </div>
+    <div class="spacer"></div>
+    <span class="clear-link" id="clearFilters">Limpiar filtros</span>
+  </div>
+
+  <div class="panel" id="defsPanel" style="margin-bottom:18px; padding:13px 18px;">
+    <div style="display:flex; gap:22px; flex-wrap:wrap; font-size:12px; color:var(--muted);">
+      <span><strong style="color:var(--text);">Desconexión eléctrica</strong> · corte ≥ 1h</span>
+      <span><strong style="color:var(--text);">Fuera de zona</strong> · fuera del radio (50m) &gt; 10min</span>
+      <span><strong style="color:var(--text);">Intermitencia</strong> · ≥ 8 cortes en &lt; 24h</span>
+      <span><strong style="color:var(--text);">Desconexión nocturna</strong> · 9pm–6am &gt; 2h</span>
+      <span style="color:var(--muted2);">Criterios oficiales del proceso de alertas IoT</span>
+    </div>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi" style="--kpi-accent:var(--navy)">
+      <div class="label">Registros filtrados</div>
+      <div class="value" id="kpiTotal">–</div>
+      <div class="sub" id="kpiTotalSub">de – totales</div>
+    </div>
+    <div class="kpi" style="--kpi-accent:var(--amber)">
+      <div class="label">Activos con alertas</div>
+      <div class="value" id="kpiActivos">–</div>
+      <div class="sub">activos únicos</div>
+    </div>
+    <div class="kpi" style="--kpi-accent:var(--amber)">
+      <div class="label">Clientes afectados</div>
+      <div class="value" id="kpiClientes">–</div>
+      <div class="sub">clientes únicos</div>
+    </div>
+    <div class="kpi" style="--kpi-accent:var(--red)">
+      <div class="label">Desconexiones &gt;6h</div>
+      <div class="value" id="kpiLargas">–</div>
+      <div class="sub">casos críticos</div>
+    </div>
+    <div class="kpi" style="--kpi-accent:var(--red)">
+      <div class="label">Desc. nocturnas &gt;2h</div>
+      <div class="value" id="kpiNocturnas">–</div>
+      <div class="sub">9pm–6am</div>
+    </div>
+    <div class="kpi" style="--kpi-accent:var(--red)">
+      <div class="label">Batería crítica</div>
+      <div class="value" id="kpiBateria">–</div>
+      <div class="sub">activos &lt;20%</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><h3>Top 10 activos con más alertas en 24h</h3><span class="badge" id="badge24h"></span></div>
+      <div class="panel-sub">Desde la última fecha registrada en los datos filtrados</div>
+      <div id="top10Activos"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Alertas diarias por activo, según distrito</h3></div>
+      <div class="panel-sub">N.º de días-activo según cuántas alertas tuvieron ese día</div>
+      <div style="overflow-x:auto;"><table id="tblAlertMatrix"></table></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><h3>Desconexiones por horario y duración</h3></div>
+      <div class="panel-sub">Incidentes (Fuera de zona / Intermitencia / Desconexión) agrupados por franja horaria de inicio</div>
+      <div style="overflow-x:auto;"><table id="tblHorarioMatrix"></table></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>Desconexiones por distrito y duración</h3></div>
+      <div class="panel-sub">Casos por distrito, según cuánto duró la desconexión</div>
+      <div style="overflow-x:auto;"><table id="tblDistritoMatrix"></table></div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px;">
+    <div class="panel-head"><h3>Top 10 clientes con más desconexiones mayores a 6h</h3></div>
+    <div class="panel-sub">Casos críticos por código de cliente en el rango filtrado</div>
+    <div id="top10Clientes6h"></div>
+  </div>
+
+  </div>
+
+  <div id="tab-placa" class="tab-panel" style="display:none;">
+    <div class="filters">
+      <div class="filter-group" style="flex:1; min-width:260px;">
+        <label>Buscar placa (Código Nevera)</label>
+        <input type="text" id="placaSearch" list="placaList" placeholder="Escribe o pega el código de la placa...">
+        <datalist id="placaList"></datalist>
+      </div>
+    </div>
+
+    <div id="placaEmpty" class="empty-state" style="padding:60px 20px;">
+      <h2>Busca una placa para ver su historial</h2>
+      <p>Escribe el código del activo (ej. 22A0476557) en el campo de arriba. Vas a ver cada desconexión que tuvo: fecha, hora de inicio, hora de fin y cuánto duró.</p>
+    </div>
+
+    <div id="placaContent" style="display:none;">
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);">
+        <div class="kpi" style="--kpi-accent:var(--navy)">
+          <div class="label">Placa</div>
+          <div class="value mono" id="pkPlaca" style="font-size:19px;">–</div>
+          <div class="sub" id="pkCliente">–</div>
+        </div>
+        <div class="kpi" style="--kpi-accent:var(--amber)">
+          <div class="label">Incidentes totales</div>
+          <div class="value" id="pkTotal">–</div>
+          <div class="sub">en todo el histórico</div>
+        </div>
+        <div class="kpi" style="--kpi-accent:var(--amber)">
+          <div class="label">Horas totales sin conexión</div>
+          <div class="value" id="pkHoras">–</div>
+          <div class="sub">suma de todos los cortes</div>
+        </div>
+        <div class="kpi" style="--kpi-accent:var(--red)">
+          <div class="label">Corte más largo</div>
+          <div class="value" id="pkMax">–</div>
+          <div class="sub" id="pkMaxDate">–</div>
+        </div>
+        <div class="kpi" style="--kpi-accent:var(--red)">
+          <div class="label">Cortes ≥6h</div>
+          <div class="value" id="pkCriticos">–</div>
+          <div class="sub">casos críticos</div>
+        </div>
+      </div>
+
+      <div class="panel" id="clientesPanelWrap" style="margin-bottom:16px;">
+        <div class="panel-head"><h3>Clientes asociados a esta placa</h3></div>
+        <div class="panel-sub">Reconstruido por orden cronológico de las filas del archivo — si el activo cambió de cliente, aparece aquí</div>
+        <div style="overflow-x:auto;"><table id="tblPlacaClientes"></table></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Historial de desconexiones</h3>
+          <span class="badge" id="pkBadge"></span>
+        </div>
+        <div class="panel-sub" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+          <span>Ordenado del corte más reciente al más antiguo</span>
+          <div id="placaClienteFilterWrap" style="display:none; align-items:center; gap:7px;">
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:600; margin:0;">Filtrar por cliente</label>
+            <select id="placaClienteSelect" style="min-width:220px;"></select>
+          </div>
+        </div>
+        <div style="overflow-x:auto;"><table id="tblPlacaHistorial"></table></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>Reporte generado en tu navegador a partir del archivo del repositorio · No se envían datos a ningún servidor</footer>
+</div>
+
+<script src="js/dashboard.js"></script>
+</body>
+</html>
