@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monitoreo de Desconexiones y Alertas</title>
+<title>Monitoreo de Activos SAGADIS</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4/dist/umd/supabase.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
@@ -19,14 +19,14 @@
     <div class="brand-mark" style="margin:0 auto 16px;">
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/></svg>
     </div>
-    <h2>Monitoreo de Desconexiones</h2>
-    <p class="login-sub">Ingresa con tu cuenta autorizada para ver el dashboard.</p>
+    <h2>Monitoreo de Activos SAGADIS</h2>
+    <p class="login-sub">Ingresa con tu cuenta autorizada</p>
     <form id="loginForm">
       <label>Correo</label>
       <input type="email" id="loginEmail" required autocomplete="username">
       <label>Contraseña</label>
       <input type="password" id="loginPassword" required autocomplete="current-password">
-      <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="width:100%; justify-content:center; margin-top:6px;">Ingresar</button>
+      <button type="submit" class="btn btn-primary" id="loginSubmitBtn" style="width:100%; justify-content:center; margin-top:6px;"><span class="spinner" id="loginSpinner" style="display:none; border-color:rgba(255,255,255,.35); border-top-color:#fff;"></span><span id="loginBtnText">Ingresar</span></button>
       <div class="login-error" id="loginError" style="display:none;"></div>
     </form>
   </div>
@@ -40,7 +40,7 @@
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/></svg>
     </div>
     <div>
-      <h1>Monitoreo de Desconexiones y Alertas</h1>
+      <h1>Monitoreo de Activos SAGADIS</h1>
       <div class="sub"><span class="live-dot" id="liveDot" style="display:none;"></span><span id="lastUpdateText">Sin datos cargados</span></div>
     </div>
   </div>
