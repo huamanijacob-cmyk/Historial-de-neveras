@@ -773,6 +773,12 @@ function renderPlacaHistorial(device, clienteFilter, groups){
 }
 
 // ---------------- Autenticación (Supabase) ----------------
+if(typeof window.supabase === 'undefined'){
+  document.getElementById('loginError').textContent = 'No se pudo cargar la librería de autenticación (Supabase). Revisa tu conexión a internet y recarga la página.';
+  document.getElementById('loginError').style.display = 'block';
+  console.error('window.supabase no está definido — el script de supabase-js no cargó.');
+}
+
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const loginScreen = document.getElementById('loginScreen');
@@ -803,6 +809,9 @@ function showLogin(){
 // Revisa si ya había una sesión activa (por ejemplo, si recargaste la página)
 supabaseClient.auth.getSession().then(({data:{session}})=>{
   if(session){ showApp(session); } else { showLogin(); }
+}).catch(err=>{
+  console.error('Error revisando sesión existente:', err);
+  showLogin();
 });
 
 // Reacciona a cambios de sesión (login, logout, expiración)
@@ -815,21 +824,36 @@ loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   loginError.style.display = 'none';
   loginSubmitBtn.disabled = true;
-  loginSubmitBtn.textContent = 'Ingresando…';
+  document.getElementById('loginSpinner').style.display = 'inline-block';
+  document.getElementById('loginBtnText').textContent = 'Ingresando…';
   const email = document.getElementById('loginEmail').value.trim();
   const password = document.getElementById('loginPassword').value;
-  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-  loginSubmitBtn.disabled = false;
-  loginSubmitBtn.textContent = 'Ingresar';
-  if(error){
-    loginError.textContent = error.message.includes('Invalid login credentials')
-      ? 'Correo o contraseña incorrectos.'
-      : 'No se pudo iniciar sesión: ' + error.message;
+  try{
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if(error){
+      console.error('Error de login de Supabase:', error);
+      // Por seguridad, Supabase no distingue "usuario no existe" de "contraseña incorrecta"
+      loginError.textContent = error.message.includes('Invalid login credentials')
+        ? 'Correo o contraseña incorrectos.'
+        : 'No se pudo iniciar sesión: ' + error.message;
+      loginError.style.display = 'block';
+    }
+    // Si fue exitoso, onAuthStateChange se encarga de mostrar el dashboard
+  } catch(err){
+    console.error('Excepción inesperada al iniciar sesión:', err);
+    loginError.textContent = 'Error de conexión al intentar iniciar sesión: ' + err.message + '. Abre la consola del navegador (F12) para más detalle.';
     loginError.style.display = 'block';
+  } finally {
+    loginSubmitBtn.disabled = false;
+    document.getElementById('loginSpinner').style.display = 'none';
+    document.getElementById('loginBtnText').textContent = 'Ingresar';
   }
-  // Si fue exitoso, onAuthStateChange se encarga de mostrar el dashboard
 });
 
 logoutBtn.addEventListener('click', async () => {
-  await supabaseClient.auth.signOut();
+  try{
+    await supabaseClient.auth.signOut();
+  } catch(err){
+    console.error('Error al cerrar sesión:', err);
+  }
 });
