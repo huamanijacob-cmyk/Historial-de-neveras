@@ -772,5 +772,64 @@ function renderPlacaHistorial(device, clienteFilter, groups){
   document.getElementById('tblPlacaHistorial').innerHTML = html;
 }
 
-// ---------------- Auto-carga al abrir la página ----------------
-fetchAndLoadData(false);
+// ---------------- Autenticación (Supabase) ----------------
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const loginScreen = document.getElementById('loginScreen');
+const appWrap = document.getElementById('appWrap');
+const loginForm = document.getElementById('loginForm');
+const loginError = document.getElementById('loginError');
+const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+const userEmailLabel = document.getElementById('userEmailLabel');
+
+function showApp(session){
+  loginScreen.style.display = 'none';
+  appWrap.style.display = 'block';
+  userEmailLabel.textContent = session?.user?.email || '';
+  // Solo carga los datos la primera vez (si RAW ya tiene filas, no recarga sola al volver de otra pestaña)
+  if(RAW.length === 0){
+    fetchAndLoadData(false);
+  }
+}
+
+function showLogin(){
+  appWrap.style.display = 'none';
+  loginScreen.style.display = 'flex';
+  loginError.style.display = 'none';
+  loginForm.reset();
+}
+
+// Revisa si ya había una sesión activa (por ejemplo, si recargaste la página)
+supabaseClient.auth.getSession().then(({data:{session}})=>{
+  if(session){ showApp(session); } else { showLogin(); }
+});
+
+// Reacciona a cambios de sesión (login, logout, expiración)
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  if(event === 'SIGNED_IN' && session){ showApp(session); }
+  if(event === 'SIGNED_OUT'){ showLogin(); }
+});
+
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.style.display = 'none';
+  loginSubmitBtn.disabled = true;
+  loginSubmitBtn.textContent = 'Ingresando…';
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  loginSubmitBtn.disabled = false;
+  loginSubmitBtn.textContent = 'Ingresar';
+  if(error){
+    loginError.textContent = error.message.includes('Invalid login credentials')
+      ? 'Correo o contraseña incorrectos.'
+      : 'No se pudo iniciar sesión: ' + error.message;
+    loginError.style.display = 'block';
+  }
+  // Si fue exitoso, onAuthStateChange se encarga de mostrar el dashboard
+});
+
+logoutBtn.addEventListener('click', async () => {
+  await supabaseClient.auth.signOut();
+});
