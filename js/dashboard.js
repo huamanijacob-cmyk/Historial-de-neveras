@@ -52,6 +52,7 @@ function toDateInputVal(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${
 let RAW = [];        // normalized rows
 let EPISODES = [];   // paired desconexión->reconexión episodes
 let loadedFileName = '';
+let fechaArchivoDesc = null; // fecha real del archivo (Last-Modified de GitHub)
 
 const ALERT_EVENTS = ['Desconexión por energía','Intermitencia','Fuera de zona'];
 
@@ -166,7 +167,7 @@ const fileInput = document.getElementById('fileInput');
 const loadBtn = document.getElementById('loadBtn');
 const emptyLoadBtn = document.getElementById('emptyLoadBtn');
 const emptyState = document.getElementById('emptyState');
-const dashboardEl = document.getElementById('dashboard');
+const dashboardEl = document.getElementById('desconexionesContent');
 const loader = document.getElementById('loader');
 
 // El botón principal y el de reintento ahora vuelven a traer el archivo del
@@ -187,18 +188,44 @@ fileInput.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0]
 
 // Trae el archivo directamente desde DATA_SOURCE_URL (por ejemplo, un raw.githubusercontent.com)
 // y lo procesa igual que si el usuario lo hubiera subido a mano.
+// ---------------- Barra de estado de fuentes de datos ----------------
+function fmtDateCorta(d){
+  if(!d || isNaN(d.getTime())) return '';
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear().toString().slice(-2)}`;
+}
+
+// GitHub expone la fecha real del archivo (cuándo se subió/actualizó) en la
+// cabecera 'Last-Modified' de la respuesta — no hay que adivinarla del contenido.
+function getFechaArchivo(res){
+  const header = res.headers.get('Last-Modified');
+  if(!header) return null;
+  const d = new Date(header);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function setSourceStatus(which, state, text){
+  // which: 'Desc' | 'Censo' — state: 'loading' | 'ok' | 'error'
+  const dot = document.getElementById('sourceDot' + which);
+  const status = document.getElementById('sourceStatus' + which);
+  if(!dot || !status) return;
+  dot.className = 'source-dot ' + state;
+  status.textContent = text;
+}
+
 async function fetchAndLoadData(isRetry){
   loader.style.display = 'flex';
   document.getElementById('loaderText').textContent = isRetry ? 'Actualizando datos…' : 'Cargando datos…';
   emptyLoadBtn.style.display = 'none';
   document.getElementById('emptyTitle').textContent = isRetry ? 'Actualizando datos…' : 'Cargando datos…';
   document.getElementById('emptyText').textContent = 'Obteniendo el archivo más reciente desde el repositorio.';
+  setSourceStatus('Desc', 'loading', 'cargando…');
 
   try{
     // cachebust evita que el navegador muestre una copia vieja en caché
     const sep = DATA_SOURCE_URL.includes('?') ? '&' : '?';
     const res = await fetch(DATA_SOURCE_URL + sep + 'cachebust=' + Date.now());
     if(!res.ok) throw new Error('No se pudo descargar el archivo (HTTP ' + res.status + ')');
+    fechaArchivoDesc = getFechaArchivo(res);
 
     const cleanUrl = DATA_SOURCE_URL.split('?')[0];
     const ext = cleanUrl.split('.').pop().toLowerCase();
@@ -225,6 +252,7 @@ async function fetchAndLoadData(isRetry){
     emptyLoadBtn.style.display = 'inline-flex';
     dashboardEl.style.display = 'none';
     emptyState.style.display = 'flex';
+    setSourceStatus('Desc', 'error', 'error al cargar');
   }
 }
 
@@ -273,11 +301,109 @@ function onDataParsed(records){
     dashboardEl.style.display = 'block';
     document.getElementById('liveDot').style.display = 'inline-block';
     loader.style.display = 'none';
+    setSourceStatus('Desc', 'ok', fechaArchivoDesc ? `archivo del ${fmtDateCorta(fechaArchivoDesc)}` : `cargado · ${RAW.length.toLocaleString('es-PE')} filas`);
   }, 30);
+}
+
+// ---------------- Componente: selector múltiple con búsqueda ----------------
+function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} = {}){
+  const container = document.getElementById(containerId);
+  if(!container) return null;
+  container.innerHTML = `
+    <button type="button" class="msel-control">
+      <span class="msel-summary">${placeholder}</span>
+      <span class="msel-caret">▾</span>
+    </button>
+    <div class="msel-panel">
+      <input type="text" class="msel-search" placeholder="Buscar...">
+      <div class="msel-actions">
+        <span class="msel-action" data-action="all">Todos</span>
+        <span class="msel-action" data-action="none">Ninguno</span>
+      </div>
+      <div class="msel-options"></div>
+    </div>
+  `;
+  const control = container.querySelector('.msel-control');
+  const summary = container.querySelector('.msel-summary');
+  const search = container.querySelector('.msel-search');
+  const optionsWrap = container.querySelector('.msel-options');
+
+  let allOptions = [];
+  let selected = new Set(); // vacío = "Todos" (sin filtro aplicado)
+
+  function updateSummary(){
+    if(selected.size === 0) summary.textContent = placeholder;
+    else if(selected.size === 1) summary.textContent = [...selected][0];
+    else summary.textContent = `${selected.size} seleccionados`;
+    control.classList.toggle('has-value', selected.size > 0);
+  }
+
+  function renderOptions(filterText){
+    const ft = (filterText||'').trim().toLowerCase();
+    const visible = ft ? allOptions.filter(o=>o.toLowerCase().includes(ft)) : allOptions;
+    optionsWrap.innerHTML = visible.map(o=>`
+      <label class="msel-option">
+        <input type="checkbox" value="${o.replace(/"/g,'&quot;')}" ${selected.has(o) ? 'checked' : ''}>
+        <span>${o}</span>
+      </label>
+    `).join('') || '<div class="msel-empty">Sin resultados</div>';
+  }
+
+  optionsWrap.addEventListener('change', (e)=>{
+    if(e.target.matches('input[type=checkbox]')){
+      const v = e.target.value;
+      if(e.target.checked) selected.add(v); else selected.delete(v);
+      updateSummary();
+      onChange();
+    }
+  });
+
+  search.addEventListener('input', ()=> renderOptions(search.value));
+
+  container.querySelector('[data-action="all"]').addEventListener('click', ()=>{
+    allOptions.forEach(o=>selected.add(o));
+    renderOptions(search.value);
+    updateSummary();
+    onChange();
+  });
+  container.querySelector('[data-action="none"]').addEventListener('click', ()=>{
+    selected.clear();
+    renderOptions(search.value);
+    updateSummary();
+    onChange();
+  });
+
+  control.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const isOpen = container.classList.contains('open');
+    document.querySelectorAll('.msel.open').forEach(m=>m.classList.remove('open'));
+    if(!isOpen){
+      container.classList.add('open');
+      search.value = '';
+      renderOptions();
+      search.focus();
+    }
+  });
+  document.addEventListener('click', (e)=>{
+    if(!container.contains(e.target)) container.classList.remove('open');
+  });
+
+  return {
+    setOptions(newOptions){
+      allOptions = newOptions;
+      selected = new Set([...selected].filter(v=>allOptions.includes(v))); // descarta selección que ya no existe
+      renderOptions(search.value);
+      updateSummary();
+    },
+    getValues(){ return [...selected]; }, // [] = sin filtro (equivale al viejo "Todos")
+    clear(){ selected.clear(); renderOptions(search.value); updateSummary(); }
+  };
 }
 
 // ---------------- Filters ----------------
 function uniqueSorted(arr){ return [...new Set(arr)].sort((a,b)=>a.localeCompare(b,'es')); }
+
+let msDistribuidor, msDistrito, msEvento;
 
 function initFiltersUI(){
   const distribuidores = uniqueSorted(RAW.map(r=>r.distribuidor));
@@ -286,21 +412,25 @@ function initFiltersUI(){
   const maxDate = RAW[RAW.length-1].fecha;
   const minDate = RAW[0].fecha;
 
-  fillSelect('fDistribuidor', distribuidores, 'Todos');
-  fillSelect('fDistrito', distritos, 'Todos');
-  fillSelect('fEvento', eventos, 'Todos');
+  if(!msDistribuidor) msDistribuidor = createMultiSelect('fDistribuidor', {placeholder:'Todos', onChange: applyFiltersAndRender});
+  if(!msDistrito) msDistrito = createMultiSelect('fDistrito', {placeholder:'Todos', onChange: applyFiltersAndRender});
+  if(!msEvento) msEvento = createMultiSelect('fEvento', {placeholder:'Todos', onChange: applyFiltersAndRender});
+  msDistribuidor.setOptions(distribuidores);
+  msDistrito.setOptions(distritos);
+  msEvento.setOptions(eventos);
+
   document.getElementById('fDesde').value = toDateInputVal(minDate);
   document.getElementById('fHasta').value = toDateInputVal(maxDate);
   document.getElementById('fDesde').min = toDateInputVal(minDate);
   document.getElementById('fHasta').max = toDateInputVal(maxDate);
 
-  ['fDistribuidor','fDistrito','fEvento','fDesde','fHasta','fSearch','fOnlyOfficial'].forEach(id=>{
+  ['fDesde','fHasta','fSearch','fOnlyOfficial'].forEach(id=>{
     document.getElementById(id).addEventListener('input', applyFiltersAndRender);
   });
   document.getElementById('clearFilters').onclick = () => {
-    fillSelect('fDistribuidor', distribuidores, 'Todos');
-    fillSelect('fDistrito', distritos, 'Todos');
-    fillSelect('fEvento', eventos, 'Todos');
+    msDistribuidor.clear();
+    msDistrito.clear();
+    msEvento.clear();
     document.getElementById('fDesde').value = toDateInputVal(minDate);
     document.getElementById('fHasta').value = toDateInputVal(maxDate);
     document.getElementById('fSearch').value = '';
@@ -316,9 +446,9 @@ function fillSelect(id, values, allLabel){
 
 function getFilters(){
   return {
-    distribuidor: document.getElementById('fDistribuidor').value,
-    distrito: document.getElementById('fDistrito').value,
-    evento: document.getElementById('fEvento').value,
+    distribuidor: msDistribuidor ? msDistribuidor.getValues() : [],
+    distrito: msDistrito ? msDistrito.getValues() : [],
+    evento: msEvento ? msEvento.getValues() : [],
     desde: document.getElementById('fDesde').value ? new Date(document.getElementById('fDesde').value+'T00:00:00') : null,
     hasta: document.getElementById('fHasta').value ? new Date(document.getElementById('fHasta').value+'T23:59:59') : null,
     search: document.getElementById('fSearch').value.trim().toLowerCase(),
@@ -327,9 +457,9 @@ function getFilters(){
 }
 
 function matchesRow(r, f){
-  if(f.distribuidor && r.distribuidor !== f.distribuidor) return false;
-  if(f.distrito && r.locacion !== f.distrito) return false;
-  if(f.evento && r.evento !== f.evento) return false;
+  if(f.distribuidor.length && !f.distribuidor.includes(r.distribuidor)) return false;
+  if(f.distrito.length && !f.distrito.includes(r.locacion)) return false;
+  if(f.evento.length && !f.evento.includes(r.evento)) return false;
   if(f.desde && r.fecha < f.desde) return false;
   if(f.hasta && r.fecha > f.hasta) return false;
   if(f.search){
@@ -339,8 +469,8 @@ function matchesRow(r, f){
   return true;
 }
 function matchesEpisode(ep, f){
-  if(f.distribuidor && ep.distribuidor !== f.distribuidor) return false;
-  if(f.distrito && ep.locacion !== f.distrito) return false;
+  if(f.distribuidor.length && !f.distribuidor.includes(ep.distribuidor)) return false;
+  if(f.distrito.length && !f.distrito.includes(ep.locacion)) return false;
   if(f.desde && ep.start < f.desde) return false;
   if(f.hasta && ep.start > f.hasta) return false;
   if(f.onlyOfficial && ep.hours < 1) return false;
@@ -776,6 +906,7 @@ function renderPlacaHistorial(device, clienteFilter, groups){
 // MÓDULO: CENSO DE ACTIVOS
 // =====================================================================
 let RAW_CENSO = [];
+let fechaArchivoCenso = null; // fecha real del archivo (Last-Modified de GitHub)
 let censoMap = null;
 let censoMarkersLayer = null;
 
@@ -794,10 +925,12 @@ function pickLargestSheet(wb){
 async function fetchAndLoadCenso(){
   const mapEl = document.getElementById('censoMap');
   mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-family:\'IBM Plex Mono\',monospace;font-size:13px;gap:8px;"><div class="spinner"></div>Cargando censo de activos…</div>';
+  setSourceStatus('Censo', 'loading', 'cargando…');
   try{
     const sep = DATA_SOURCE_URL_CENSO.includes('?') ? '&' : '?';
     const res = await fetch(DATA_SOURCE_URL_CENSO + sep + 'cachebust=' + Date.now());
     if(!res.ok) throw new Error('No se pudo descargar el archivo de censo (HTTP ' + res.status + ')');
+    fechaArchivoCenso = getFechaArchivo(res);
     const buf = await res.arrayBuffer();
     const wb = XLSX.read(buf, {type:'array', cellDates:true});
     // Los encabezados reales de este archivo están en la FILA 2 (no en la 1,
@@ -811,8 +944,10 @@ async function fetchAndLoadCenso(){
     }
     initCensoFiltersUI();
     applyCensoFiltersAndRender();
+    setSourceStatus('Censo', 'ok', fechaArchivoCenso ? `archivo del ${fmtDateCorta(fechaArchivoCenso)}` : `cargado · ${RAW_CENSO.length.toLocaleString('es-PE')} activos`);
   } catch(err){
     console.error('Error cargando censo:', err);
+    setSourceStatus('Censo', 'error', 'error al cargar');
     mapEl.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--red);text-align:center;padding:20px;gap:10px;">
       <div>No se pudo cargar el archivo de censo.</div>
       <div style="font-size:12px;color:var(--muted); max-width:420px;">${err.message}</div>
@@ -857,19 +992,26 @@ function normalizeCenso(records){
   }).filter(r=>r.placa);
 }
 
+let msVendedor, msCanal, msStatus, msDistritoCenso;
+
 function initCensoFiltersUI(){
-  fillSelect('cFVendedor', uniqueSorted(RAW_CENSO.map(r=>r.vendedor)), 'Todos');
-  fillSelect('cFCanal', uniqueSorted(RAW_CENSO.map(r=>r.canal)), 'Todos');
-  fillSelect('cFStatus', uniqueSorted(RAW_CENSO.map(r=>r.status)), 'Todos');
-  fillSelect('cFDistrito', uniqueSorted(RAW_CENSO.map(r=>r.distrito)), 'Todos');
-  ['cFVendedor','cFCanal','cFStatus','cFDistrito','cFSearch','cFOnlyPatio'].forEach(id=>{
+  if(!msVendedor) msVendedor = createMultiSelect('cFVendedor', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
+  if(!msCanal) msCanal = createMultiSelect('cFCanal', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
+  if(!msStatus) msStatus = createMultiSelect('cFStatus', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
+  if(!msDistritoCenso) msDistritoCenso = createMultiSelect('cFDistrito', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
+  msVendedor.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.vendedor)));
+  msCanal.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.canal)));
+  msStatus.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.status)));
+  msDistritoCenso.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.distrito)));
+
+  ['cFSearch','cFOnlyPatio'].forEach(id=>{
     document.getElementById(id).addEventListener('input', applyCensoFiltersAndRender);
   });
   document.getElementById('censoClearFilters').onclick = () => {
-    document.getElementById('cFVendedor').value = '';
-    document.getElementById('cFCanal').value = '';
-    document.getElementById('cFStatus').value = '';
-    document.getElementById('cFDistrito').value = '';
+    msVendedor.clear();
+    msCanal.clear();
+    msStatus.clear();
+    msDistritoCenso.clear();
     document.getElementById('cFSearch').value = '';
     document.getElementById('cFOnlyPatio').checked = false;
     applyCensoFiltersAndRender();
@@ -878,20 +1020,20 @@ function initCensoFiltersUI(){
 
 function getCensoFilters(){
   return {
-    vendedor: document.getElementById('cFVendedor').value,
-    canal: document.getElementById('cFCanal').value,
-    status: document.getElementById('cFStatus').value,
-    distrito: document.getElementById('cFDistrito').value,
+    vendedor: msVendedor ? msVendedor.getValues() : [],
+    canal: msCanal ? msCanal.getValues() : [],
+    status: msStatus ? msStatus.getValues() : [],
+    distrito: msDistritoCenso ? msDistritoCenso.getValues() : [],
     search: document.getElementById('cFSearch').value.trim().toLowerCase(),
     onlyPatio: document.getElementById('cFOnlyPatio').checked
   };
 }
 
 function matchesCenso(r, f){
-  if(f.vendedor && r.vendedor !== f.vendedor) return false;
-  if(f.canal && r.canal !== f.canal) return false;
-  if(f.status && r.status !== f.status) return false;
-  if(f.distrito && r.distrito !== f.distrito) return false;
+  if(f.vendedor.length && !f.vendedor.includes(r.vendedor)) return false;
+  if(f.canal.length && !f.canal.includes(r.canal)) return false;
+  if(f.status.length && !f.status.includes(r.status)) return false;
+  if(f.distrito.length && !f.distrito.includes(r.distrito)) return false;
   if(f.onlyPatio && !r.esPatio) return false;
   if(f.search){
     const s = f.search;
@@ -904,9 +1046,9 @@ function applyCensoFiltersAndRender(){
   const f = getCensoFilters();
   const rows = RAW_CENSO.filter(r=>matchesCenso(r,f));
   renderCensoKPIs(rows);
-  renderCensoAvance('censoAvanceCanal', rows, 'canal', 20);
-  renderCensoAvance('censoAvanceVendedor', rows, 'vendedor', 12);
-  renderCensoAvance('censoAvanceDistrito', rows, 'distrito', 12);
+  renderCensoAvance('censoAvanceCanal', rows, 'canal', null);
+  renderCensoAvance('censoAvanceVendedor', rows, 'vendedor', null);
+  renderCensoAvance('censoAvanceDistrito', rows, 'distrito', null);
   renderCensoAntiguedad(rows);
   renderCensoMap(rows);
 }
@@ -938,15 +1080,14 @@ function renderCensoAvance(containerId, rows, field, topN){
   });
   const items = Object.entries(groups)
     .map(([label,g])=>({ label, pct: g.total ? Math.round(g.censados/g.total*100) : 0, total:g.total, censados:g.censados }))
-    .sort((a,b)=> b.total - a.total)
-    .slice(0, topN)
-    .sort((a,b)=> b.pct - a.pct);
+    .sort((a,b)=> b.total - a.total);
+  const limited = (topN ? items.slice(0, topN) : items).sort((a,b)=> b.pct - a.pct);
   const container = document.getElementById(containerId);
   if(items.length === 0){
     container.innerHTML = '<div style="color:var(--muted2); font-size:12.5px;">Sin datos en el rango filtrado.</div>';
     return;
   }
-  container.innerHTML = items.map(it=>{
+  container.innerHTML = limited.map(it=>{
     const color = it.pct >= 95 ? '#2e9e4f' : it.pct >= 80 ? 'var(--gold)' : 'var(--red)';
     return `
     <div class="bar-wrap">
@@ -995,13 +1136,47 @@ function renderCensoMap(rows){
 
   if(!censoMap){
     document.getElementById('censoMap').innerHTML = '';
-    censoMap = L.map('censoMap');
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      maxZoom: 19
+    censoMap = L.map('censoMap', { zoomControl: true, attributionControl: true });
+    // Basemap claro y minimalista (CartoDB Positron) — combina mejor con el diseño
+    // del dashboard que el estilo saturado por defecto de OpenStreetMap.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      maxZoom: 19, subdomains: 'abcd'
     }).addTo(censoMap);
-    censoMarkersLayer = L.markerClusterGroup({ maxClusterRadius: 45, disableClusteringAtZoom: 17 });
+
+    // Los clusters se colorean según el % de censo de los puntos que agrupan
+    // (no solo la cantidad), para poder ver zonas problemáticas de un vistazo.
+    censoMarkersLayer = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      disableClusteringAtZoom: 17,
+      iconCreateFunction: function(cluster){
+        const children = cluster.getAllChildMarkers();
+        const total = children.length;
+        const ok = children.filter(m=>m.options.censado).length;
+        const pct = total ? Math.round(ok/total*100) : 0;
+        const color = pct >= 90 ? '#2e9e4f' : pct >= 70 ? '#c67c0a' : '#c0392b';
+        const size = total < 20 ? 34 : total < 100 ? 42 : 52;
+        return L.divIcon({
+          html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:${size>44?13:11.5}px;border:3px solid rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(16,24,48,.35);">${total}</div>`,
+          className: '',
+          iconSize: [size, size]
+        });
+      }
+    });
     censoMap.addLayer(censoMarkersLayer);
+
+    // Leyenda flotante fija sobre el mapa
+    const legend = L.control({position:'bottomleft'});
+    legend.onAdd = function(){
+      const div = L.DomUtil.create('div', 'censo-map-legend');
+      div.innerHTML = `
+        <div><span class="dot" style="background:#2e9e4f;"></span>Censado</div>
+        <div><span class="dot" style="background:#c0392b;"></span>Pendiente</div>
+        <div style="margin-top:4px; color:var(--muted2); font-size:10.5px;">Círculos: grupos de activos · el color indica su % de avance</div>
+      `;
+      return div;
+    };
+    legend.addTo(censoMap);
   } else {
     censoMarkersLayer.clearLayers();
   }
@@ -1009,7 +1184,7 @@ function renderCensoMap(rows){
   const iconOk = makeDotIcon('#2e9e4f');
   const iconPend = makeDotIcon('#c0392b');
   const markers = withCoords.map(r=>{
-    const marker = L.marker([r.lat, r.lng], { icon: r.censado ? iconOk : iconPend });
+    const marker = L.marker([r.lat, r.lng], { icon: r.censado ? iconOk : iconPend, censado: r.censado });
     marker.bindPopup(`
       <div class="censo-popup">
         <b>${r.placa || 'Sin placa'}</b> · ${r.tipoActivo}<br>
@@ -1023,10 +1198,16 @@ function renderCensoMap(rows){
   });
   censoMarkersLayer.addLayers(markers);
 
-  if(markers.length){
-    censoMap.fitBounds(censoMarkersLayer.getBounds(), { padding:[20,20], maxZoom:14 });
-  } else {
-    censoMap.setView([-12.05, -77.03], 11); // vista por defecto: Lima
+  // Solo ajusta el encuadre la PRIMERA vez que se dibuja el mapa (con todos los
+  // activos). Al cambiar filtros después, el mapa se queda quieto — así se
+  // siente como un filtro instantáneo y no como si la página se recargara.
+  if(!censoMap._encuadreInicialHecho){
+    if(markers.length){
+      censoMap.fitBounds(censoMarkersLayer.getBounds(), { padding:[20,20], maxZoom:14 });
+    } else {
+      censoMap.setView([-12.05, -77.03], 11); // vista por defecto: Lima
+    }
+    censoMap._encuadreInicialHecho = true;
   }
   setTimeout(()=>censoMap.invalidateSize(), 60);
 }
@@ -1045,6 +1226,9 @@ document.querySelectorAll('.module-tabbar .tab-btn').forEach(btn=>{
       } else if(censoMap){
         setTimeout(()=>censoMap.invalidateSize(), 60);
       }
+    }
+    if(mod === 'desconexiones' && RAW.length === 0){
+      fetchAndLoadData(false);
     }
   });
 });
@@ -1070,9 +1254,11 @@ function showApp(session){
   loginScreen.style.display = 'none';
   appWrap.style.display = 'block';
   userEmailLabel.textContent = session?.user?.email || '';
-  // Solo carga los datos la primera vez (si RAW ya tiene filas, no recarga sola al volver de otra pestaña)
-  if(RAW.length === 0){
-    fetchAndLoadData(false);
+  // Carga solo el módulo que está activo por defecto (Censo). El otro (Desconexiones)
+  // se carga recién cuando el usuario hace clic en esa pestaña — así el login se
+  // siente más rápido, sin traer ambos archivos de golpe.
+  if(RAW_CENSO.length === 0){
+    fetchAndLoadCenso();
   }
 }
 
