@@ -156,3 +156,17 @@
 
 #loginSubmitBtn{ display:flex; align-items:center; justify-content:center; gap:8px; }
 #loginSubmitBtn .spinner{ display:inline-block; }
+
+/* ---- module tabbar (nivel superior) ---- */
+.module-tabbar{ border-bottom:2px solid var(--navy); margin-bottom:20px; }
+.module-tabbar .tab-btn{ font-size:14.5px; padding:10px 18px; }
+.module-tabbar .tab-btn.active{ color:var(--navy); border-bottom-color:var(--navy); }
+.module-panel{ }
+
+/* ---- mapa de censo ---- */
+#censoMap{ background:var(--panel2); }
+.censo-popup{ font-family:'Inter',sans-serif; font-size:12.5px; line-height:1.5; }
+.censo-popup b{ color:var(--navy-dark); }
+.censo-popup .tag-ok{ color:#2e9e4f; font-weight:700; }
+.censo-popup .tag-pend{ color:var(--red); font-weight:700; }
+.leaflet-popup-content-wrapper{ border-radius:10px; }
