@@ -772,6 +772,283 @@ function renderPlacaHistorial(device, clienteFilter, groups){
   document.getElementById('tblPlacaHistorial').innerHTML = html;
 }
 
+// =====================================================================
+// MÓDULO: CENSO DE ACTIVOS
+// =====================================================================
+let RAW_CENSO = [];
+let censoMap = null;
+let censoMarkersLayer = null;
+
+function pickLargestSheet(wb){
+  let best = wb.SheetNames[0], bestRows = -1;
+  wb.SheetNames.forEach(name=>{
+    const ref = wb.Sheets[name]['!ref'];
+    if(!ref) return;
+    const range = XLSX.utils.decode_range(ref);
+    const rows = range.e.r - range.s.r;
+    if(rows > bestRows){ bestRows = rows; best = name; }
+  });
+  return best;
+}
+
+async function fetchAndLoadCenso(){
+  const mapEl = document.getElementById('censoMap');
+  mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-family:\'IBM Plex Mono\',monospace;font-size:13px;gap:8px;"><div class="spinner"></div>Cargando censo de activos…</div>';
+  try{
+    const sep = DATA_SOURCE_URL_CENSO.includes('?') ? '&' : '?';
+    const res = await fetch(DATA_SOURCE_URL_CENSO + sep + 'cachebust=' + Date.now());
+    if(!res.ok) throw new Error('No se pudo descargar el archivo de censo (HTTP ' + res.status + ')');
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(buf, {type:'array', cellDates:true});
+    // Los encabezados reales de este archivo están en la FILA 2 (no en la 1,
+    // que trae títulos combinados). Por eso usamos range:1 (0-indexado).
+    const sheetName = wb.SheetNames.includes('Hoja1') ? 'Hoja1' : pickLargestSheet(wb);
+    const sheet = wb.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, {range:1, defval:'', cellDates:true});
+    normalizeCenso(data);
+    if(RAW_CENSO.length === 0){
+      throw new Error('El archivo no tiene filas reconocibles. Revisa que la hoja "Hoja1" tenga los encabezados esperados (Placa Física, Vendedor, Canal, STATUS, X, Y...).');
+    }
+    initCensoFiltersUI();
+    applyCensoFiltersAndRender();
+  } catch(err){
+    console.error('Error cargando censo:', err);
+    mapEl.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--red);text-align:center;padding:20px;gap:10px;">
+      <div>No se pudo cargar el archivo de censo.</div>
+      <div style="font-size:12px;color:var(--muted); max-width:420px;">${err.message}</div>
+      <button class="btn btn-primary" id="censoRetryBtn">↻ Reintentar</button>
+    </div>`;
+    document.getElementById('censoRetryBtn')?.addEventListener('click', fetchAndLoadCenso);
+  }
+}
+
+function normalizeCenso(records){
+  RAW_CENSO = records.map(r=>{
+    const razonSocial = (r['Razon Social']||'').toString().trim();
+    const tdRaf = (r['TD RAF']||'').toString().trim();
+    const esPatio = tdRaf.toUpperCase()==='PATIOS' || !razonSocial;
+    const status = (r['STATUS']||'Sin status').toString().trim() || 'Sin status';
+    // "OK" cubre tanto "CENSO OK" como "TRASPASO DISMAC (CENSO OK)"
+    const censado = /OK/i.test(status);
+    const lat = parseFloat(r['X']);
+    const lng = parseFloat(r['Y']);
+    const tieneCoord = isFinite(lat) && isFinite(lng) && lat !== 0 && lng !== 0;
+    let fechaUbicacion = r['FECHA DE UBICACIÓN'];
+    if(!(fechaUbicacion instanceof Date) || isNaN(fechaUbicacion?.getTime?.())) fechaUbicacion = null;
+    const placa = (r['PLACA FÍSICA'] || r['PLACA SISTEMA'] || '').toString().trim();
+    return {
+      activoFijo: r['Activo fijo'],
+      placa,
+      tipoActivo: (r['Tipo de Activo']||'Sin tipo').toString().trim() || 'Sin tipo',
+      marca: (r['MARCA']||'').toString().trim(),
+      modelo: (r['MODELO']||'').toString().trim(),
+      tamano: (r['TAMAÑO']||'').toString().trim(),
+      cliente: esPatio ? 'Patio Sagadis' : razonSocial,
+      esPatio,
+      vendedor: (r['Vendedor']||'').toString().trim() || 'Sin vendedor',
+      canal: (r['Canal']||'').toString().trim() || 'Sin canal',
+      canalVenta: (r['Canal Venta']||'').toString().trim(),
+      distrito: (r['Distrito']||'').toString().trim() || 'Sin distrito',
+      status,
+      censado,
+      fechaUbicacion,
+      lat, lng, tieneCoord
+    };
+  }).filter(r=>r.placa);
+}
+
+function initCensoFiltersUI(){
+  fillSelect('cFVendedor', uniqueSorted(RAW_CENSO.map(r=>r.vendedor)), 'Todos');
+  fillSelect('cFCanal', uniqueSorted(RAW_CENSO.map(r=>r.canal)), 'Todos');
+  fillSelect('cFStatus', uniqueSorted(RAW_CENSO.map(r=>r.status)), 'Todos');
+  fillSelect('cFDistrito', uniqueSorted(RAW_CENSO.map(r=>r.distrito)), 'Todos');
+  ['cFVendedor','cFCanal','cFStatus','cFDistrito','cFSearch','cFOnlyPatio'].forEach(id=>{
+    document.getElementById(id).addEventListener('input', applyCensoFiltersAndRender);
+  });
+  document.getElementById('censoClearFilters').onclick = () => {
+    document.getElementById('cFVendedor').value = '';
+    document.getElementById('cFCanal').value = '';
+    document.getElementById('cFStatus').value = '';
+    document.getElementById('cFDistrito').value = '';
+    document.getElementById('cFSearch').value = '';
+    document.getElementById('cFOnlyPatio').checked = false;
+    applyCensoFiltersAndRender();
+  };
+}
+
+function getCensoFilters(){
+  return {
+    vendedor: document.getElementById('cFVendedor').value,
+    canal: document.getElementById('cFCanal').value,
+    status: document.getElementById('cFStatus').value,
+    distrito: document.getElementById('cFDistrito').value,
+    search: document.getElementById('cFSearch').value.trim().toLowerCase(),
+    onlyPatio: document.getElementById('cFOnlyPatio').checked
+  };
+}
+
+function matchesCenso(r, f){
+  if(f.vendedor && r.vendedor !== f.vendedor) return false;
+  if(f.canal && r.canal !== f.canal) return false;
+  if(f.status && r.status !== f.status) return false;
+  if(f.distrito && r.distrito !== f.distrito) return false;
+  if(f.onlyPatio && !r.esPatio) return false;
+  if(f.search){
+    const s = f.search;
+    if(!r.placa.toLowerCase().includes(s) && !r.cliente.toLowerCase().includes(s)) return false;
+  }
+  return true;
+}
+
+function applyCensoFiltersAndRender(){
+  const f = getCensoFilters();
+  const rows = RAW_CENSO.filter(r=>matchesCenso(r,f));
+  renderCensoKPIs(rows);
+  renderCensoAvance('censoAvanceCanal', rows, 'canal', 20);
+  renderCensoAvance('censoAvanceVendedor', rows, 'vendedor', 12);
+  renderCensoAvance('censoAvanceDistrito', rows, 'distrito', 12);
+  renderCensoAntiguedad(rows);
+  renderCensoMap(rows);
+}
+
+function renderCensoKPIs(rows){
+  const total = rows.length;
+  const censados = rows.filter(r=>r.censado).length;
+  const pendientes = total - censados;
+  const pct = total ? Math.round(censados/total*100) : 0;
+  const now = new Date();
+  const viejos = rows.filter(r=> !r.censado && r.fechaUbicacion && (now - r.fechaUbicacion)/86400000 >= 60).length;
+  const patio = rows.filter(r=>r.esPatio).length;
+  document.getElementById('cKpiTotal').textContent = total.toLocaleString('es-PE');
+  document.getElementById('cKpiTotalSub').textContent = `de ${RAW_CENSO.length.toLocaleString('es-PE')} totales`;
+  document.getElementById('cKpiCensados').textContent = censados.toLocaleString('es-PE');
+  document.getElementById('cKpiPct').textContent = `${pct}% de avance`;
+  document.getElementById('cKpiPendientes').textContent = pendientes.toLocaleString('es-PE');
+  document.getElementById('cKpiViejos').textContent = viejos.toLocaleString('es-PE');
+  document.getElementById('cKpiPatio').textContent = patio.toLocaleString('es-PE');
+}
+
+function renderCensoAvance(containerId, rows, field, topN){
+  const groups = {};
+  rows.forEach(r=>{
+    const k = r[field];
+    if(!groups[k]) groups[k] = {total:0, censados:0};
+    groups[k].total++;
+    if(r.censado) groups[k].censados++;
+  });
+  const items = Object.entries(groups)
+    .map(([label,g])=>({ label, pct: g.total ? Math.round(g.censados/g.total*100) : 0, total:g.total, censados:g.censados }))
+    .sort((a,b)=> b.total - a.total)
+    .slice(0, topN)
+    .sort((a,b)=> b.pct - a.pct);
+  const container = document.getElementById(containerId);
+  if(items.length === 0){
+    container.innerHTML = '<div style="color:var(--muted2); font-size:12.5px;">Sin datos en el rango filtrado.</div>';
+    return;
+  }
+  container.innerHTML = items.map(it=>{
+    const color = it.pct >= 95 ? '#2e9e4f' : it.pct >= 80 ? 'var(--gold)' : 'var(--red)';
+    return `
+    <div class="bar-wrap">
+      <div class="bar-label" title="${it.label} · ${it.censados}/${it.total}">${it.label}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${it.pct}%; background:${color};"></div></div>
+      <div class="bar-val">${it.pct}%</div>
+    </div>`;
+  }).join('');
+}
+
+function renderCensoAntiguedad(rows){
+  const now = new Date();
+  const buckets = {'Menos de 45 días':0, 'Entre 45 y 60 días':0, 'Entre 60 y 90 días':0, 'Mayor a 90 días':0, 'Sin fecha de ubicación':0};
+  rows.filter(r=>!r.censado).forEach(r=>{
+    if(!r.fechaUbicacion){ buckets['Sin fecha de ubicación']++; return; }
+    const dias = Math.floor((now - r.fechaUbicacion)/86400000);
+    if(dias < 45) buckets['Menos de 45 días']++;
+    else if(dias < 60) buckets['Entre 45 y 60 días']++;
+    else if(dias < 90) buckets['Entre 60 y 90 días']++;
+    else buckets['Mayor a 90 días']++;
+  });
+  const total = Object.values(buckets).reduce((a,b)=>a+b,0);
+  let html = '<thead><tr><th>Días desde ubicación</th><th>N° Placas</th></tr></thead><tbody>';
+  Object.entries(buckets).forEach(([k,v])=>{
+    if(v === 0) return;
+    html += `<tr><td>${k}</td><td style="font-weight:600;">${v.toLocaleString('es-PE')}</td></tr>`;
+  });
+  html += `<tr class="total-row"><td>Total pendientes</td><td>${total.toLocaleString('es-PE')}</td></tr></tbody>`;
+  document.getElementById('tblCensoAntiguedad').innerHTML = total ? html : '<tbody><tr><td>No hay activos pendientes en el rango filtrado 🎉</td></tr></tbody>';
+}
+
+function makeDotIcon(color){
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:13px;height:13px;border-radius:50%;background:${color};border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25);"></div>`,
+    iconSize: [13,13],
+    iconAnchor: [6.5,6.5]
+  });
+}
+
+const censoIconOk = null; // se crean recién cuando Leaflet ya está cargado (ver renderCensoMap)
+
+function renderCensoMap(rows){
+  const withCoords = rows.filter(r=>r.tieneCoord);
+  document.getElementById('censoMapBadge').textContent = `${withCoords.length.toLocaleString('es-PE')} activos con ubicación en el mapa`;
+
+  if(!censoMap){
+    document.getElementById('censoMap').innerHTML = '';
+    censoMap = L.map('censoMap');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19
+    }).addTo(censoMap);
+    censoMarkersLayer = L.markerClusterGroup({ maxClusterRadius: 45, disableClusteringAtZoom: 17 });
+    censoMap.addLayer(censoMarkersLayer);
+  } else {
+    censoMarkersLayer.clearLayers();
+  }
+
+  const iconOk = makeDotIcon('#2e9e4f');
+  const iconPend = makeDotIcon('#c0392b');
+  const markers = withCoords.map(r=>{
+    const marker = L.marker([r.lat, r.lng], { icon: r.censado ? iconOk : iconPend });
+    marker.bindPopup(`
+      <div class="censo-popup">
+        <b>${r.placa || 'Sin placa'}</b> · ${r.tipoActivo}<br>
+        ${r.cliente}<br>
+        Canal: ${r.canal} · Vendedor: ${r.vendedor}<br>
+        Distrito: ${r.distrito}<br>
+        Status: ${r.censado ? '<span class="tag-ok">'+r.status+'</span>' : '<span class="tag-pend">'+r.status+'</span>'}
+      </div>
+    `);
+    return marker;
+  });
+  censoMarkersLayer.addLayers(markers);
+
+  if(markers.length){
+    censoMap.fitBounds(censoMarkersLayer.getBounds(), { padding:[20,20], maxZoom:14 });
+  } else {
+    censoMap.setView([-12.05, -77.03], 11); // vista por defecto: Lima
+  }
+  setTimeout(()=>censoMap.invalidateSize(), 60);
+}
+
+// ---------------- Tabbar de módulo (Desconexiones vs Censo) ----------------
+document.querySelectorAll('.module-tabbar .tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.module-tabbar .tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const mod = btn.dataset.module;
+    document.getElementById('module-desconexiones').style.display = mod === 'desconexiones' ? 'block' : 'none';
+    document.getElementById('module-censo').style.display = mod === 'censo' ? 'block' : 'none';
+    if(mod === 'censo'){
+      if(RAW_CENSO.length === 0){
+        fetchAndLoadCenso();
+      } else if(censoMap){
+        setTimeout(()=>censoMap.invalidateSize(), 60);
+      }
+    }
+  });
+});
+
 // ---------------- Autenticación (Supabase) ----------------
 if(typeof window.supabase === 'undefined'){
   document.getElementById('loginError').textContent = 'No se pudo cargar la librería de autenticación (Supabase). Revisa tu conexión a internet y recarga la página.';
