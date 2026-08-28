@@ -8,6 +8,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.4/dist/umd/supabase.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
@@ -20,7 +25,7 @@
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/></svg>
     </div>
     <h2>Monitoreo de Activos SAGADIS</h2>
-    <p class="login-sub">Ingresa con tu cuenta autorizada</p>
+    <p class="login-sub">Ingresa con tu cuenta autorizada para ver el dashboard.</p>
     <form id="loginForm">
       <label>Correo</label>
       <input type="email" id="loginEmail" required autocomplete="username">
@@ -64,6 +69,13 @@
 </div>
 
 <div id="dashboard">
+
+  <div class="tabbar module-tabbar">
+    <button class="tab-btn active" data-module="desconexiones">⚡ Desconexiones y Alertas</button>
+    <button class="tab-btn" data-module="censo">📋 Censo de Activos</button>
+  </div>
+
+  <div id="module-desconexiones" class="module-panel">
 
   <div class="tabbar">
     <button class="tab-btn active" data-tab="general">Resumen general</button>
@@ -251,6 +263,107 @@
     </div>
   </div>
 
+  </div><!-- /module-desconexiones -->
+
+  <div id="module-censo" class="module-panel" style="display:none;">
+
+    <div class="filters">
+      <div class="filter-group">
+        <label>Vendedor</label>
+        <select id="cFVendedor"></select>
+      </div>
+      <div class="filter-group">
+        <label>Canal</label>
+        <select id="cFCanal"></select>
+      </div>
+      <div class="filter-group">
+        <label>Status</label>
+        <select id="cFStatus"></select>
+      </div>
+      <div class="filter-group">
+        <label>Distrito</label>
+        <select id="cFDistrito"></select>
+      </div>
+      <div class="filter-group" style="flex:1; min-width:170px;">
+        <label>Buscar placa / cliente</label>
+        <input type="text" id="cFSearch" placeholder="Placa, código, cliente...">
+      </div>
+      <div class="filter-group">
+        <label style="visibility:hidden;">·</label>
+        <label class="toggle-wrap" style="display:flex; align-items:center; gap:7px; cursor:pointer; text-transform:none; font-size:12.5px; color:var(--text); font-weight:400;">
+          <input type="checkbox" id="cFOnlyPatio" style="accent-color:var(--navy); width:15px; height:15px;">
+          Solo activos en patio Sagadis
+        </label>
+      </div>
+      <div class="spacer"></div>
+      <span class="clear-link" id="censoClearFilters">Limpiar filtros</span>
+    </div>
+
+    <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);">
+      <div class="kpi" style="--kpi-accent:var(--navy)">
+        <div class="label">Activos filtrados</div>
+        <div class="value" id="cKpiTotal">–</div>
+        <div class="sub" id="cKpiTotalSub">de – totales</div>
+      </div>
+      <div class="kpi" style="--kpi-accent:#2e9e4f">
+        <div class="label">Censados</div>
+        <div class="value" id="cKpiCensados">–</div>
+        <div class="sub" id="cKpiPct">– % de avance</div>
+      </div>
+      <div class="kpi" style="--kpi-accent:var(--red)">
+        <div class="label">Pendientes de censo</div>
+        <div class="value" id="cKpiPendientes">–</div>
+        <div class="sub">no censados</div>
+      </div>
+      <div class="kpi" style="--kpi-accent:var(--amber)">
+        <div class="label">Pendientes &gt;60 días</div>
+        <div class="value" id="cKpiViejos">–</div>
+        <div class="sub">desde su ubicación</div>
+      </div>
+      <div class="kpi" style="--kpi-accent:var(--muted)">
+        <div class="label">En patio Sagadis</div>
+        <div class="value" id="cKpiPatio">–</div>
+        <div class="sub">sin cliente asignado</div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h3>% Avance de censo por Canal</h3></div>
+        <div class="panel-sub">Porcentaje de activos censados sobre el total, por canal de venta</div>
+        <div id="censoAvanceCanal"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>Pendientes de censo por antigüedad</h3></div>
+        <div class="panel-sub">Días transcurridos desde la fecha de ubicación del activo, sin censar</div>
+        <div style="overflow-x:auto;"><table id="tblCensoAntiguedad"></table></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h3>% Avance de censo por Vendedor</h3></div>
+        <div class="panel-sub">Los 12 vendedores con más activos asignados</div>
+        <div id="censoAvanceVendedor"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>% Avance de censo por Distrito</h3></div>
+        <div class="panel-sub">Los 12 distritos con más activos</div>
+        <div id="censoAvanceDistrito"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head">
+        <h3>Mapa de activos</h3>
+        <span class="badge" id="censoMapBadge"></span>
+      </div>
+      <div class="panel-sub">🟢 Censado &nbsp; 🔴 Pendiente de censo &nbsp;·&nbsp; se actualiza con los filtros de arriba. Puntos agrupados por zoom — acércate para ver activos individuales.</div>
+      <div id="censoMap" style="height:520px; border-radius:10px; overflow:hidden; border:1px solid var(--border);"></div>
+    </div>
+
+  </div><!-- /module-censo -->
+
   <footer>Reporte generado en tu navegador a partir del archivo del repositorio · No se envían datos a ningún servidor</footer>
 </div>
 
@@ -264,6 +377,12 @@
   // =====================================================================
   const SUPABASE_URL = 'https://hpqulndpskzxwfyxaxif.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_QXYMGe2MCa6ei6MvSKLj_A_Ldmt7B51';
+
+  // =====================================================================
+  // Archivo de CENSO DE ACTIVOS — súbelo a tu mismo repo de GitHub con
+  // este nombre exacto (o cambia la URL de abajo si prefieres otro nombre)
+  // =====================================================================
+  const DATA_SOURCE_URL_CENSO = 'https://raw.githubusercontent.com/huamanijacob-cmyk/Historial-de-neveras/main/Censo_Activos.xlsx';
 </script>
 <script src="js/dashboard.js"></script>
 </body>
