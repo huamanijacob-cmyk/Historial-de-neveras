@@ -1320,3 +1320,4 @@ logoutBtn.addEventListener('click', async () => {
     console.error('Error al cerrar sesión:', err);
   }
 });
+
