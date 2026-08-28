@@ -25,7 +25,7 @@
       <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/></svg>
     </div>
     <h2>Monitoreo de Activos SAGADIS</h2>
-    <p class="login-sub">Ingresa con tu cuenta autorizada para ver el dashboard.</p>
+    <p class="login-sub">Ingresa tus credenciales.</p>
     <form id="loginForm">
       <label>Correo</label>
       <input type="email" id="loginEmail" required autocomplete="username">
@@ -59,23 +59,42 @@
   </div>
 </div>
 
-<div class="empty-state" id="emptyState">
-  <h2 id="emptyTitle">Cargando datos…</h2>
-  <p id="emptyText">Obteniendo el archivo más reciente desde el repositorio. Esto solo toma un momento.</p>
-  <button class="btn btn-primary" id="emptyLoadBtn" style="display:none;">↻ Reintentar</button>
-  <div style="margin-top:6px;">
-    <span class="clear-link" id="manualFallbackLink">o cargar un archivo manualmente</span>
+<div class="sources-bar">
+  <div class="source-chip">
+    <span class="source-dot" id="sourceDotCenso"></span>
+    <span class="source-file">Censo_Activos.xlsx</span>
+    <span class="source-arrow">→</span>
+    <span class="source-module">Censo de Activos</span>
+    <span class="source-status" id="sourceStatusCenso">no cargado aún</span>
+  </div>
+  <div class="source-chip">
+    <span class="source-dot" id="sourceDotDesc"></span>
+    <span class="source-file">Historial_de_alertas.xlsx</span>
+    <span class="source-arrow">→</span>
+    <span class="source-module">Desconexiones y Alertas</span>
+    <span class="source-status" id="sourceStatusDesc">no cargado aún</span>
   </div>
 </div>
 
 <div id="dashboard">
 
   <div class="tabbar module-tabbar">
-    <button class="tab-btn active" data-module="desconexiones">⚡ Desconexiones y Alertas</button>
-    <button class="tab-btn" data-module="censo">📋 Censo de Activos</button>
+    <button class="tab-btn active" data-module="censo">📋 Censo de Activos</button>
+    <button class="tab-btn" data-module="desconexiones">⚡ Desconexiones y Alertas</button>
   </div>
 
-  <div id="module-desconexiones" class="module-panel">
+  <div id="module-desconexiones" class="module-panel" style="display:none;">
+
+  <div class="empty-state" id="emptyState">
+    <h2 id="emptyTitle">Cargando datos…</h2>
+    <p id="emptyText">Obteniendo el archivo más reciente desde el repositorio. Esto solo toma un momento.</p>
+    <button class="btn btn-primary" id="emptyLoadBtn" style="display:none;">↻ Reintentar</button>
+    <div style="margin-top:6px;">
+      <span class="clear-link" id="manualFallbackLink">o cargar un archivo manualmente</span>
+    </div>
+  </div>
+
+  <div id="desconexionesContent" style="display:none;">
 
   <div class="tabbar">
     <button class="tab-btn active" data-tab="general">Resumen general</button>
@@ -87,15 +106,15 @@
   <div class="filters">
     <div class="filter-group">
       <label>Distribuidor</label>
-      <select id="fDistribuidor"></select>
+      <div class="msel" id="fDistribuidor"></div>
     </div>
     <div class="filter-group">
       <label>Distrito</label>
-      <select id="fDistrito"></select>
+      <div class="msel" id="fDistrito"></div>
     </div>
     <div class="filter-group">
       <label>Evento</label>
-      <select id="fEvento"></select>
+      <div class="msel" id="fEvento"></div>
     </div>
     <div class="filter-group">
       <label>Desde</label>
@@ -263,26 +282,28 @@
     </div>
   </div>
 
+  </div><!-- /desconexionesContent -->
+
   </div><!-- /module-desconexiones -->
 
-  <div id="module-censo" class="module-panel" style="display:none;">
+  <div id="module-censo" class="module-panel">
 
     <div class="filters">
       <div class="filter-group">
         <label>Vendedor</label>
-        <select id="cFVendedor"></select>
+        <div class="msel" id="cFVendedor"></div>
       </div>
       <div class="filter-group">
         <label>Canal</label>
-        <select id="cFCanal"></select>
+        <div class="msel" id="cFCanal"></div>
       </div>
       <div class="filter-group">
         <label>Status</label>
-        <select id="cFStatus"></select>
+        <div class="msel" id="cFStatus"></div>
       </div>
       <div class="filter-group">
         <label>Distrito</label>
-        <select id="cFDistrito"></select>
+        <div class="msel" id="cFDistrito"></div>
       </div>
       <div class="filter-group" style="flex:1; min-width:170px;">
         <label>Buscar placa / cliente</label>
@@ -343,13 +364,13 @@
     <div class="grid2">
       <div class="panel">
         <div class="panel-head"><h3>% Avance de censo por Vendedor</h3></div>
-        <div class="panel-sub">Los 12 vendedores con más activos asignados</div>
-        <div id="censoAvanceVendedor"></div>
+        <div class="panel-sub">Todos los vendedores, ordenados por % de avance</div>
+        <div id="censoAvanceVendedor" style="max-height:340px; overflow-y:auto; padding-right:4px;"></div>
       </div>
       <div class="panel">
         <div class="panel-head"><h3>% Avance de censo por Distrito</h3></div>
-        <div class="panel-sub">Los 12 distritos con más activos</div>
-        <div id="censoAvanceDistrito"></div>
+        <div class="panel-sub">Todos los distritos, ordenados por % de avance</div>
+        <div id="censoAvanceDistrito" style="max-height:340px; overflow-y:auto; padding-right:4px;"></div>
       </div>
     </div>
 
