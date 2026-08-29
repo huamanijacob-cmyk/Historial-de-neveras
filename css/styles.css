@@ -207,7 +207,7 @@
 .msel-panel{
   display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:40;
   background:var(--panel); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(16,24,48,.14);
-  width:max(100%, 240px); padding:8px; max-height:340px;
+  width:max(100%, 240px); padding:8px;
 }
 .msel.open .msel-panel{ display:flex; flex-direction:column; }
 .msel-search{
@@ -222,7 +222,7 @@
 .msel-todos-row:hover{ background:var(--navy-soft); }
 .msel-todos-row input{ accent-color:var(--navy); width:14px; height:14px; flex-shrink:0; }
 .msel-divider{ height:1px; background:var(--border); margin:4px 2px 6px; flex-shrink:0; }
-.msel-options{ overflow-y:auto; max-height:220px; display:flex; flex-direction:column; }
+.msel-options{ display:flex; flex-direction:column; }
 .msel-option{
   display:flex; align-items:center; gap:8px; padding:5px 6px; font-size:12.5px; color:var(--text);
   cursor:pointer; border-radius:5px; font-family:'Inter',sans-serif;
