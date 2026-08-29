@@ -253,6 +253,7 @@ async function fetchAndLoadData(isRetry){
     dashboardEl.style.display = 'none';
     emptyState.style.display = 'flex';
     setSourceStatus('Desc', 'error', 'error al cargar');
+    console.error('Error cargando Desconexiones y Alertas:', err);
   }
 }
 
@@ -305,7 +306,11 @@ function onDataParsed(records){
   }, 30);
 }
 
-// ---------------- Componente: selector múltiple con búsqueda ----------------
+// ---------------- Componente: selector múltiple con búsqueda (estilo Excel) ----------------
+// Comportamiento: "Todos" es el estado por defecto (checkbox marcado = sin filtro).
+// Si desmarcas un elemento individual, "Todos" se desmarca automáticamente y queda
+// aplicado el filtro explícito (todo menos lo que quitaste). Nunca se permite llegar
+// a 0 elementos marcados: si desmarcas el último que quedaba, vuelve a "Todos".
 function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} = {}){
   const container = document.getElementById(containerId);
   if(!container) return null;
@@ -316,62 +321,93 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
     </button>
     <div class="msel-panel">
       <input type="text" class="msel-search" placeholder="Buscar...">
-      <div class="msel-actions">
-        <span class="msel-action" data-action="all">Todos</span>
-        <span class="msel-action" data-action="none">Ninguno</span>
-      </div>
+      <label class="msel-todos-row">
+        <input type="checkbox" class="msel-todos-checkbox" checked>
+        <span>Todos</span>
+      </label>
+      <div class="msel-divider"></div>
       <div class="msel-options"></div>
     </div>
   `;
   const control = container.querySelector('.msel-control');
   const summary = container.querySelector('.msel-summary');
   const search = container.querySelector('.msel-search');
+  const todosCheckbox = container.querySelector('.msel-todos-checkbox');
   const optionsWrap = container.querySelector('.msel-options');
 
   let allOptions = [];
-  let selected = new Set(); // vacío = "Todos" (sin filtro aplicado)
+  let selected = new Set(); // solo tiene sentido cuando todosMode === false
+  let todosMode = true;
 
   function updateSummary(){
-    if(selected.size === 0) summary.textContent = placeholder;
+    if(todosMode) summary.textContent = placeholder;
     else if(selected.size === 1) summary.textContent = [...selected][0];
     else summary.textContent = `${selected.size} seleccionados`;
-    control.classList.toggle('has-value', selected.size > 0);
+    control.classList.toggle('has-value', !todosMode);
+    todosCheckbox.checked = todosMode;
   }
+
+  function isChecked(opt){ return todosMode ? true : selected.has(opt); }
 
   function renderOptions(filterText){
     const ft = (filterText||'').trim().toLowerCase();
     const visible = ft ? allOptions.filter(o=>o.toLowerCase().includes(ft)) : allOptions;
     optionsWrap.innerHTML = visible.map(o=>`
       <label class="msel-option">
-        <input type="checkbox" value="${o.replace(/"/g,'&quot;')}" ${selected.has(o) ? 'checked' : ''}>
+        <input type="checkbox" value="${o.replace(/"/g,'&quot;')}" ${isChecked(o) ? 'checked' : ''}>
         <span>${o}</span>
       </label>
     `).join('') || '<div class="msel-empty">Sin resultados</div>';
   }
 
+  function handleIndividualToggle(v, checked){
+    if(todosMode){
+      // salir de "Todos": queda todo marcado excepto el que se acaba de desmarcar
+      // (si en cambio lo que hizo fue marcar uno estando ya todo marcado, no hay nada que hacer)
+      if(!checked){
+        todosMode = false;
+        selected = new Set(allOptions);
+        selected.delete(v);
+      }
+    } else {
+      if(checked) selected.add(v); else selected.delete(v);
+      if(selected.size === 0){
+        // no se permite quedar en 0: se vuelve a "Todos"
+        todosMode = true;
+        selected.clear();
+      } else if(selected.size === allOptions.length){
+        // si terminan marcados todos otra vez, se colapsa a "Todos" (más limpio)
+        todosMode = true;
+        selected.clear();
+      }
+    }
+  }
+
   optionsWrap.addEventListener('change', (e)=>{
     if(e.target.matches('input[type=checkbox]')){
-      const v = e.target.value;
-      if(e.target.checked) selected.add(v); else selected.delete(v);
+      handleIndividualToggle(e.target.value, e.target.checked);
+      renderOptions(search.value);
       updateSummary();
       onChange();
     }
   });
 
-  search.addEventListener('input', ()=> renderOptions(search.value));
+  todosCheckbox.addEventListener('change', ()=>{
+    if(todosCheckbox.checked){
+      todosMode = true;
+      selected.clear();
+    } else {
+      // no tiene sentido desmarcar "Todos" sin elegir nada en su lugar —
+      // se revierte para no permitir un filtro vacío/sin sentido
+      todosCheckbox.checked = true;
+      return;
+    }
+    renderOptions(search.value);
+    updateSummary();
+    onChange();
+  });
 
-  container.querySelector('[data-action="all"]').addEventListener('click', ()=>{
-    allOptions.forEach(o=>selected.add(o));
-    renderOptions(search.value);
-    updateSummary();
-    onChange();
-  });
-  container.querySelector('[data-action="none"]').addEventListener('click', ()=>{
-    selected.clear();
-    renderOptions(search.value);
-    updateSummary();
-    onChange();
-  });
+  search.addEventListener('input', ()=> renderOptions(search.value));
 
   control.addEventListener('click', (e)=>{
     e.stopPropagation();
@@ -391,12 +427,15 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
   return {
     setOptions(newOptions){
       allOptions = newOptions;
-      selected = new Set([...selected].filter(v=>allOptions.includes(v))); // descarta selección que ya no existe
+      if(!todosMode){
+        selected = new Set([...selected].filter(v=>allOptions.includes(v))); // descarta selección que ya no existe
+        if(selected.size === 0){ todosMode = true; }
+      }
       renderOptions(search.value);
       updateSummary();
     },
-    getValues(){ return [...selected]; }, // [] = sin filtro (equivale al viejo "Todos")
-    clear(){ selected.clear(); renderOptions(search.value); updateSummary(); }
+    getValues(){ return todosMode ? [] : [...selected]; }, // [] = sin filtro (equivale a "Todos")
+    clear(){ todosMode = true; selected.clear(); renderOptions(search.value); updateSummary(); }
   };
 }
 
@@ -437,11 +476,6 @@ function initFiltersUI(){
     document.getElementById('fOnlyOfficial').checked = false;
     applyFiltersAndRender();
   };
-}
-
-function fillSelect(id, values, allLabel){
-  const sel = document.getElementById(id);
-  sel.innerHTML = `<option value="">${allLabel}</option>` + values.map(v=>`<option value="${v.replace(/"/g,'&quot;')}">${v}</option>`).join('');
 }
 
 function getFilters(){
@@ -714,10 +748,16 @@ function renderDistritoMatrix(episodes){
   document.getElementById('tblDistritoMatrix').innerHTML = html;
 }
 
-// ---------------- Tabs ----------------
-document.querySelectorAll('.tab-btn').forEach(btn=>{
+// ---------------- Tabs (Resumen general / Detalle por placa, DENTRO del módulo Desconexiones) ----------------
+// OJO: usamos '.tabbar:not(.module-tabbar) .tab-btn' para no capturar también los
+// botones de arriba (Censo / Desconexiones), que usan la misma clase .tab-btn pero
+// tienen su propio manejador más abajo (ver "Tabbar de módulo"). Antes esto colisionaba:
+// este listener genérico también se disparaba en los botones de módulo y fallaba
+// buscando un elemento "tab-undefined" que no existe.
+document.querySelectorAll('.tabbar:not(.module-tabbar) .tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    const scope = btn.closest('.tabbar');
+    scope.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     document.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
     document.getElementById('tab-'+btn.dataset.tab).style.display='block';
@@ -765,16 +805,6 @@ function renderPlacaDetalle(device){
   document.getElementById('placaEmpty').style.display = 'none';
   document.getElementById('placaContent').style.display = 'block';
 
-  // Reconstruye periodos de cliente en orden cronológico (todas las filas del activo,
-  // no solo los incidentes). Dos filas consecutivas se consideran DEL MISMO cliente si:
-  //  - su código (ya resuelto) coincide, Y
-  //  - el nombre coincide, o a una de las dos le falta el nombre (fila con solo código).
-  // Si el código coincide pero AMBAS filas traen nombre y son distintos (ej. mismo
-  // código de cuenta pero registrado alguna vez a nombre de otra persona — pasa con
-  // cuentas familiares/negocios), se trata como un cliente distinto de verdad.
-  // Si el código viene dañado en notación científica (típico de Excel con números
-  // largos, ej. "2.203E+13"), se intenta resolver contra los códigos completos que
-  // esa misma placa mostró en otras filas antes de decidir.
   const deviceRows = RAW.filter(r=>r.device === device); // ya viene ordenado por fecha global
   const resolveCode = buildCodeResolver(deviceRows);
   const periods = [];
@@ -804,8 +834,6 @@ function renderPlacaDetalle(device){
     }
   });
 
-  // Agrupa los periodos por identidad real de cliente (código+nombre), por si el mismo
-  // cliente reaparece más adelante después de un tramo con otro nombre.
   const groups = {}; // key -> {label, periods:[]}
   periods.forEach(p=>{
     const key = p.code + '|' + p.name;
@@ -822,7 +850,6 @@ function renderPlacaDetalle(device){
     document.getElementById('pkCliente').textContent = periods[0] ? `${periods[0].cliente} · ${periods[0].locacion}` : 'Sin registros';
   }
 
-  // Tabla de clientes asociados (siempre completa, sin filtrar)
   const allEps = EPISODES.filter(e=>e.device === device);
   let clHtml = `<thead><tr><th>Cliente</th><th>Distrito</th><th>Desde</th><th>Hasta</th><th>Incidentes en ese periodo</th></tr></thead><tbody>`;
   periods.slice().reverse().forEach(p=>{
@@ -839,7 +866,6 @@ function renderPlacaDetalle(device){
   document.getElementById('tblPlacaClientes').innerHTML = clHtml;
   document.getElementById('clientesPanelWrap').style.display = groupKeys.length > 1 ? 'block' : 'none';
 
-  // Selector de cliente para filtrar el historial — solo visible si hay más de uno real
   const filterWrap = document.getElementById('placaClienteFilterWrap');
   const select = document.getElementById('placaClienteSelect');
   if(groupKeys.length > 1){
@@ -858,9 +884,6 @@ function renderPlacaDetalle(device){
 function renderPlacaHistorial(device, clienteFilter, groups){
   let eps = EPISODES.filter(e=>e.device === device);
   if(clienteFilter && clienteFilter !== '__ALL__' && groups && groups[clienteFilter]){
-    // se filtra por los rangos de fecha del grupo elegido (no comparando texto por
-    // incidente, para que también cubra los incidentes cuya fila de origen no traía
-    // el nombre del cliente)
     const ranges = groups[clienteFilter].periods;
     eps = eps.filter(e => ranges.some(p => e.start >= p.desde && e.start <= p.hasta));
   }
@@ -1128,8 +1151,6 @@ function makeDotIcon(color){
   });
 }
 
-const censoIconOk = null; // se crean recién cuando Leaflet ya está cargado (ver renderCensoMap)
-
 function renderCensoMap(rows){
   const withCoords = rows.filter(r=>r.tieneCoord);
   document.getElementById('censoMapBadge').textContent = `${withCoords.length.toLocaleString('es-PE')} activos con ubicación en el mapa`;
@@ -1137,15 +1158,11 @@ function renderCensoMap(rows){
   if(!censoMap){
     document.getElementById('censoMap').innerHTML = '';
     censoMap = L.map('censoMap', { zoomControl: true, attributionControl: true });
-    // Basemap claro y minimalista (CartoDB Positron) — combina mejor con el diseño
-    // del dashboard que el estilo saturado por defecto de OpenStreetMap.
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       maxZoom: 19, subdomains: 'abcd'
     }).addTo(censoMap);
 
-    // Los clusters se colorean según el % de censo de los puntos que agrupan
-    // (no solo la cantidad), para poder ver zonas problemáticas de un vistazo.
     censoMarkersLayer = L.markerClusterGroup({
       maxClusterRadius: 50,
       disableClusteringAtZoom: 17,
@@ -1165,7 +1182,6 @@ function renderCensoMap(rows){
     });
     censoMap.addLayer(censoMarkersLayer);
 
-    // Leyenda flotante fija sobre el mapa
     const legend = L.control({position:'bottomleft'});
     legend.onAdd = function(){
       const div = L.DomUtil.create('div', 'censo-map-legend');
@@ -1198,9 +1214,6 @@ function renderCensoMap(rows){
   });
   censoMarkersLayer.addLayers(markers);
 
-  // Solo ajusta el encuadre la PRIMERA vez que se dibuja el mapa (con todos los
-  // activos). Al cambiar filtros después, el mapa se queda quieto — así se
-  // siente como un filtro instantáneo y no como si la página se recargara.
   if(!censoMap._encuadreInicialHecho){
     if(markers.length){
       censoMap.fitBounds(censoMarkersLayer.getBounds(), { padding:[20,20], maxZoom:14 });
@@ -1254,9 +1267,6 @@ function showApp(session){
   loginScreen.style.display = 'none';
   appWrap.style.display = 'block';
   userEmailLabel.textContent = session?.user?.email || '';
-  // Carga solo el módulo que está activo por defecto (Censo). El otro (Desconexiones)
-  // se carga recién cuando el usuario hace clic en esa pestaña — así el login se
-  // siente más rápido, sin traer ambos archivos de golpe.
   if(RAW_CENSO.length === 0){
     fetchAndLoadCenso();
   }
@@ -1269,7 +1279,6 @@ function showLogin(){
   loginForm.reset();
 }
 
-// Revisa si ya había una sesión activa (por ejemplo, si recargaste la página)
 supabaseClient.auth.getSession().then(({data:{session}})=>{
   if(session){ showApp(session); } else { showLogin(); }
 }).catch(err=>{
@@ -1277,7 +1286,6 @@ supabaseClient.auth.getSession().then(({data:{session}})=>{
   showLogin();
 });
 
-// Reacciona a cambios de sesión (login, logout, expiración)
 supabaseClient.auth.onAuthStateChange((event, session) => {
   if(event === 'SIGNED_IN' && session){ showApp(session); }
   if(event === 'SIGNED_OUT'){ showLogin(); }
@@ -1295,13 +1303,11 @@ loginForm.addEventListener('submit', async (e) => {
     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
     if(error){
       console.error('Error de login de Supabase:', error);
-      // Por seguridad, Supabase no distingue "usuario no existe" de "contraseña incorrecta"
       loginError.textContent = error.message.includes('Invalid login credentials')
         ? 'Correo o contraseña incorrectos.'
         : 'No se pudo iniciar sesión: ' + error.message;
       loginError.style.display = 'block';
     }
-    // Si fue exitoso, onAuthStateChange se encarga de mostrar el dashboard
   } catch(err){
     console.error('Excepción inesperada al iniciar sesión:', err);
     loginError.textContent = 'Error de conexión al intentar iniciar sesión: ' + err.message + '. Abre la consola del navegador (F12) para más detalle.';
@@ -1320,4 +1326,3 @@ logoutBtn.addEventListener('click', async () => {
     console.error('Error al cerrar sesión:', err);
   }
 });
-
