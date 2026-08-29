@@ -294,7 +294,6 @@ function onDataParsed(records){
       loader.style.display='none';
       return;
     }
-    document.getElementById('fileMeta').textContent = `${loadedFileName} · ${RAW.length.toLocaleString('es-PE')} filas`;
     initFiltersUI();
     initPlacaUI();
     applyFiltersAndRender();
