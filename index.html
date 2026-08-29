@@ -190,11 +190,24 @@
     </div>
   </div>
 
-  <div class="grid2">
+   <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><h3>Top 10 activos con más alertas en 24h</h3><span class="badge" id="badge24h"></span></div>
+      <div class="panel-sub">Desde la última fecha registrada en los datos filtrados</div>
+      <div id="top10Activos"></div>
+    </div>
     <div class="panel">
       <div class="panel-head"><h3>Desconexiones por horario y duración</h3></div>
       <div class="panel-sub">Incidentes (Fuera de zona / Intermitencia / Desconexión) agrupados por franja horaria de inicio</div>
       <div style="overflow-x:auto;"><table id="tblHorarioMatrix"></table></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <div class="panel-head"><h3>Alertas diarias por activo, según distrito</h3></div>
+      <div class="panel-sub">N.º de días-activo según cuántas alertas tuvieron ese día</div>
+      <div style="overflow-x:auto;"><table id="tblAlertMatrix"></table></div>
     </div>
     <div class="panel">
       <div class="panel-head"><h3>Desconexiones por distrito y duración</h3></div>
