@@ -553,11 +553,12 @@ function renderKPIs(rows, episodes){
 function heatColor(value, max){
   if(max<=0 || value<=0) return {bg:'transparent', fg:'inherit'};
   const t = Math.min(value/max, 1);
-  // azul marino (bajo) -> dorado (medio) -> rojo (alto)
+  // verde (bajo) -> dorado (medio) -> rojo (alto) — mismo tono "semáforo" que el
+  // módulo de Censo, para que ambos se sientan parte de un mismo producto.
   let bg;
   if(t < 0.5){
     const p = t/0.5;
-    bg = mix('#dbe4f7','#f2c94c',p);
+    bg = mix('#d9f0df','#f2c94c',p);
   } else {
     const p = (t-0.5)/0.5;
     bg = mix('#f2c94c','#c0392b',p);
@@ -576,12 +577,18 @@ function mix(c1,c2,p){
 function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
 
 function renderBarList(container, items, maxVal){
-  container.innerHTML = items.map(it=>`
+  container.innerHTML = items.map(it=>{
+    const hc = heatColor(it.value, maxVal);
+    // barras más largas (peor) van hacia el rojo; las más cortas hacia el verde —
+    // mismo criterio "semáforo" que las tablas de calor y que el módulo de Censo.
+    const fillColor = maxVal ? mix('#2e9e4f', '#c0392b', Math.min(it.value/maxVal,1)) : 'var(--navy)';
+    return `
     <div class="bar-wrap">
       <div class="bar-label" title="${it.label}">${it.label}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${maxVal? (it.value/maxVal*100):0}%"></div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${maxVal? (it.value/maxVal*100):0}%; background:${fillColor};"></div></div>
       <div class="bar-val">${it.value}</div>
-    </div>`).join('') || '<div style="color:var(--muted2); font-size:12.5px;">Sin datos en el rango filtrado.</div>';
+    </div>`;
+  }).join('') || '<div style="color:var(--muted2); font-size:12.5px;">Sin datos en el rango filtrado.</div>';
 }
 
 function renderTop10Activos24h(rows, maxDateAll){
@@ -1157,9 +1164,12 @@ function renderCensoMap(rows){
   if(!censoMap){
     document.getElementById('censoMap').innerHTML = '';
     censoMap = L.map('censoMap', { zoomControl: true, attributionControl: true });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      maxZoom: 19, subdomains: 'abcd'
+    // Nota: CARTO (basemaps.cartocdn.com) empezó a exigir una API key incluso para
+    // uso gratuito — se cambió a OpenStreetMap estándar, que no requiere ninguna
+    // clave ni registro.
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19, subdomains: 'abc'
     }).addTo(censoMap);
 
     censoMarkersLayer = L.markerClusterGroup({
