@@ -57,23 +57,19 @@
 
   /* ---- filters ---- */
   .filters{
-    display:flex; gap:10px; flex-wrap:nowrap; align-items:center;
+    display:flex; gap:10px 14px; flex-wrap:wrap; align-items:flex-end;
     background:var(--panel); border:1px solid var(--border); border-radius:12px;
-    padding:12px 16px; margin-bottom:18px; box-shadow:var(--shadow);
-    overflow-x:auto; overflow-y:visible;
-    scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+    padding:14px 16px; margin-bottom:18px; box-shadow:var(--shadow);
   }
-  .filters::-webkit-scrollbar{ height:6px; }
-  .filters::-webkit-scrollbar-thumb{ background:var(--border); border-radius:10px; }
   .filters label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:4px; font-weight:600; white-space:nowrap;}
-  .filter-group{display:flex; flex-direction:column; flex-shrink:0;}
+  .filter-group{display:flex; flex-direction:column;}
   select, input[type=date], input[type=text]{
     background:var(--panel2); border:1px solid var(--border); color:var(--text);
     border-radius:7px; padding:7px 10px; font-size:13px; font-family:'IBM Plex Mono',monospace; min-width:130px;
   }
   select:focus, input:focus{outline:none; border-color:var(--navy); box-shadow:0 0 0 3px var(--navy-soft);}
-  .filters .spacer{flex:0 0 8px;}
-  .clear-link{font-size:12px; color:var(--muted); cursor:pointer; text-decoration:underline; text-underline-offset:3px; white-space:nowrap; flex-shrink:0;}
+  .filters .spacer{flex:1 0 auto; min-width:8px;}
+  .clear-link{font-size:12px; color:var(--muted); cursor:pointer; text-decoration:underline; text-underline-offset:3px; white-space:nowrap;}
   .clear-link:hover{color:var(--navy);}
 
   /* ---- kpis ---- */
@@ -210,26 +206,30 @@
 .msel-control:hover{ border-color:var(--navy); }
 .msel-control.has-value{ border-color:var(--navy); background:var(--navy-soft); color:var(--navy-dark); font-weight:600; }
 .msel-summary{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.msel-caret{ color:var(--muted2); font-size:10px; flex-shrink:0; }
 .msel-panel{
   display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:40;
   background:var(--panel); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(16,24,48,.14);
-  width:max(100%, 240px); padding:8px;
+  width:max(100%, 240px); padding:8px; max-height:340px;
+  opacity:0; transform:translateY(-4px); transition:opacity .12s ease, transform .12s ease;
 }
-.msel.open .msel-panel{ display:flex; flex-direction:column; }
+.msel.open .msel-panel{ display:flex; flex-direction:column; opacity:1; transform:translateY(0); }
+.msel-caret{ color:var(--muted2); font-size:10px; flex-shrink:0; transition:transform .15s ease; }
+.msel.open .msel-caret{ transform:rotate(180deg); }
 .msel-search{
   background:var(--panel2); border:1px solid var(--border); color:var(--text);
-  border-radius:6px; padding:6px 9px; font-size:12.5px; font-family:'Inter',sans-serif; width:100%; margin-bottom:6px;
+  border-radius:6px; padding:6px 9px; font-size:12.5px; font-family:'Inter',sans-serif; width:100%; margin-bottom:6px; flex-shrink:0;
 }
 .msel-search:focus{ outline:none; border-color:var(--navy); }
 .msel-todos-row{
   display:flex; align-items:center; gap:8px; padding:6px 6px; font-size:12.5px; font-weight:700;
-  color:var(--navy-dark); cursor:pointer; border-radius:5px; font-family:'Inter',sans-serif;
+  color:var(--navy-dark); cursor:pointer; border-radius:5px; font-family:'Inter',sans-serif; flex-shrink:0;
 }
 .msel-todos-row:hover{ background:var(--navy-soft); }
 .msel-todos-row input{ accent-color:var(--navy); width:14px; height:14px; flex-shrink:0; }
 .msel-divider{ height:1px; background:var(--border); margin:4px 2px 6px; flex-shrink:0; }
-.msel-options{ display:flex; flex-direction:column; }
+.msel-options{ display:flex; flex-direction:column; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+.msel-options::-webkit-scrollbar{ width:6px; }
+.msel-options::-webkit-scrollbar-thumb{ background:var(--border); border-radius:10px; }
 .msel-option{
   display:flex; align-items:center; gap:8px; padding:5px 6px; font-size:12.5px; color:var(--text);
   cursor:pointer; border-radius:5px; font-family:'Inter',sans-serif;
