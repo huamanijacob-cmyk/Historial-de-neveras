@@ -567,6 +567,18 @@ function heatColor(value, max){
   return {bg, fg};
 }
 
+// Celda de las tablas de calor como una "burbuja" circular de tamaño proporcional
+// al valor, en vez de una celda rectangular sólida — se ve mucho menos a hoja de
+// cálculo y más a un gráfico de datos moderno, manteniendo el mismo color semáforo.
+function heatDot(value, max){
+  if(max<=0 || value<=0) return `<td><span class="heat-dot-empty">–</span></td>`;
+  const t = Math.min(value/max, 1);
+  const size = Math.round(17 + t*23); // 17px .. 40px
+  const hc = heatColor(value, max);
+  const fontSize = size >= 27 ? 12 : 10.5;
+  return `<td><span class="heat-dot" style="width:${size}px; height:${size}px; background:${hc.bg}; color:${hc.fg}; font-size:${fontSize}px;">${value}</span></td>`;
+}
+
 function mix(c1,c2,p){
   const a = hexToRgb(c1), b = hexToRgb(c2);
   const r = Math.round(a[0]+(b[0]-a[0])*p);
@@ -576,19 +588,54 @@ function mix(c1,c2,p){
 }
 function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
 
-function renderBarList(container, items, maxVal){
-  container.innerHTML = items.map(it=>{
-    const hc = heatColor(it.value, maxVal);
-    // barras más largas (peor) van hacia el rojo; las más cortas hacia el verde —
-    // mismo criterio "semáforo" que las tablas de calor y que el módulo de Censo.
-    const fillColor = maxVal ? mix('#2e9e4f', '#c0392b', Math.min(it.value/maxVal,1)) : 'var(--navy)';
-    return `
-    <div class="bar-wrap">
-      <div class="bar-label" title="${it.label}">${it.label}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${maxVal? (it.value/maxVal*100):0}%; background:${fillColor};"></div></div>
-      <div class="bar-val">${it.value}</div>
-    </div>`;
-  }).join('') || '<div style="color:var(--muted2); font-size:12.5px;">Sin datos en el rango filtrado.</div>';
+// ---------------- Gráficos de barra (Chart.js) para los Top 10 ----------------
+const chartInstances = {};
+function renderBarChart(containerId, items, maxVal){
+  const container = document.getElementById(containerId);
+  if(items.length === 0){
+    if(chartInstances[containerId]){ chartInstances[containerId].destroy(); delete chartInstances[containerId]; }
+    container.innerHTML = '<div style="color:var(--muted2); font-size:12.5px; padding:10px 0;">Sin datos en el rango filtrado.</div>';
+    return;
+  }
+  if(!container.querySelector('canvas')){
+    container.innerHTML = '<div style="position:relative;"><canvas></canvas></div>';
+  }
+  container.style.height = Math.max(180, items.length*32 + 26) + 'px';
+  container.firstElementChild.style.height = container.style.height;
+  const canvas = container.querySelector('canvas');
+  const labels = items.map(i=>i.label);
+  const data = items.map(i=>i.value);
+  const colors = items.map(i=> maxVal ? mix('#2e9e4f','#c0392b', Math.min(i.value/maxVal,1)) : '#0c2461');
+
+  if(chartInstances[containerId]){
+    const ch = chartInstances[containerId];
+    ch.data.labels = labels;
+    ch.data.datasets[0].data = data;
+    ch.data.datasets[0].backgroundColor = colors;
+    ch.update();
+  } else {
+    chartInstances[containerId] = new Chart(canvas, {
+      type: 'bar',
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderRadius: 6, barPercentage: 0.68, categoryPercentage: 0.85 }] },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 280 },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#0c2461', titleFont: { family: 'Inter', weight: '600' },
+            bodyFont: { family: 'IBM Plex Mono' }, padding: 10, cornerRadius: 8, displayColors: false
+          }
+        },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0, font: { family: 'IBM Plex Mono', size: 11 }, color: '#6b7688' }, grid: { color: '#eef1f6' }, border: { display: false } },
+          y: { ticks: { font: { family: 'Inter', size: 11.5 }, color: '#1b2436' }, grid: { display: false }, border: { display: false } }
+        }
+      }
+    });
+  }
 }
 
 function renderTop10Activos24h(rows, maxDateAll){
@@ -598,7 +645,7 @@ function renderTop10Activos24h(rows, maxDateAll){
   alertRows.forEach(r=> counts[r.device] = (counts[r.device]||0)+1);
   const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([label,value])=>({label,value}));
   document.getElementById('badge24h').textContent = `${fmtDateTime(from)} → ${fmtDateTime(maxDateAll)}`;
-  renderBarList(document.getElementById('top10Activos'), top, top[0]?.value||0);
+  renderBarChart('top10Activos', top, top[0]?.value||0);
 }
 
 function extractClientCode(cliente){
@@ -656,7 +703,7 @@ function renderTop10Clientes6h(episodes){
     counts[code] = (counts[code]||0)+1;
   });
   const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([label,value])=>({label,value}));
-  renderBarList(document.getElementById('top10Clientes6h'), top, top[0]?.value||0);
+  renderBarChart('top10Clientes6h', top, top[0]?.value||0);
 }
 
 function renderAlertMatrix(rows){
@@ -693,7 +740,7 @@ function renderAlertMatrix(rows){
     const rowTotal = buckets.reduce((s,b)=>s+matrix[d][b],0);
     html += `<tr><td>${d}</td>${buckets.map(b=>{
       const v = matrix[d][b];
-      const hc = heatColor(v,maxCell); return `<td><span class="heat-cell" style="background:${hc.bg}; color:${hc.fg};">${v||''}</span></td>`;
+      return heatDot(v, maxCell);
     }).join('')}<td style="font-weight:600;">${rowTotal}</td></tr>`;
   });
   html += `<tr class="total-row"><td>Total</td>${buckets.map(b=>`<td>${totals[b]}</td>`).join('')}<td>${grandTotal}</td></tr>`;
@@ -717,7 +764,7 @@ function renderHorarioMatrix(episodes){
     const rowTotal = DUR_BUCKETS.reduce((s,d)=>s+matrix[h][d],0);
     html += `<tr><td>${h}</td>${DUR_BUCKETS.map(d=>{
       const v = matrix[h][d];
-      const hc = heatColor(v,maxCell); return `<td><span class="heat-cell" style="background:${hc.bg}; color:${hc.fg};">${v||''}</span></td>`;
+      return heatDot(v, maxCell);
     }).join('')}<td style="font-weight:600;">${rowTotal}</td></tr>`;
   });
   html += `<tr class="total-row"><td>Total</td>${DUR_BUCKETS.map(d=>`<td>${totals[d]}</td>`).join('')}<td>${grandTotal}</td></tr>`;
@@ -746,7 +793,7 @@ function renderDistritoMatrix(episodes){
     const rowTotal = DUR_BUCKETS.reduce((s,d)=>s+matrix[dt][d],0);
     html += `<tr><td>${dt}</td>${DUR_BUCKETS.map(d=>{
       const v = matrix[dt][d];
-      const hc = heatColor(v,maxCell); return `<td><span class="heat-cell" style="background:${hc.bg}; color:${hc.fg};">${v||''}</span></td>`;
+      return heatDot(v, maxCell);
     }).join('')}<td style="font-weight:600;">${rowTotal}</td></tr>`;
   });
   html += `<tr class="total-row"><td>Total</td>${DUR_BUCKETS.map(d=>`<td>${totals[d]}</td>`).join('')}<td>${grandTotal}</td></tr>`;
