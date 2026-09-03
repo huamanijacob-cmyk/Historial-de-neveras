@@ -302,3 +302,22 @@
   font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;
 }
 .drange-apply:hover{ background:var(--navy-dark); }
+
+/* ---- barra de filtros activos (chips) ---- */
+.active-filters-bar{ display:flex; gap:8px; flex-wrap:wrap; margin:-8px 0 16px; min-height:0; }
+.active-filters-bar:empty{ display:none; margin:0; }
+.filter-chip{
+  display:flex; align-items:center; gap:6px; background:var(--navy-soft); border:1px solid #c9d3ef;
+  color:var(--navy-dark); border-radius:20px; padding:4px 6px 4px 12px; font-size:11.5px;
+  font-family:'Inter',sans-serif; font-weight:600;
+}
+.filter-chip .chip-x{
+  width:16px; height:16px; border-radius:50%; background:rgba(12,36,97,.12); display:flex; align-items:center;
+  justify-content:center; cursor:pointer; font-size:11px; line-height:1; color:var(--navy-dark);
+}
+.filter-chip .chip-x:hover{ background:var(--navy); color:#fff; }
+
+/* ---- barras clickeables (avance por canal/vendedor/distrito) ---- */
+.bar-clickable{ cursor:pointer; border-radius:6px; padding:3px 4px; margin:-3px -4px 6px; transition:background .12s ease; }
+.bar-clickable:hover{ background:var(--panel2); }
+.bar-clickable:hover .bar-label{ color:var(--navy); font-weight:600; }
