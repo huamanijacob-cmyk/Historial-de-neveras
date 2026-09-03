@@ -311,6 +311,8 @@
       <span class="clear-link" id="censoClearFilters">Limpiar filtros</span>
     </div>
 
+    <div class="active-filters-bar" id="censoActiveFilters"></div>
+
     <div class="kpi-row" style="grid-template-columns:repeat(5,1fr);">
       <div class="kpi" style="--kpi-accent:var(--navy)">
         <div class="label">Activos filtrados</div>
@@ -325,10 +327,10 @@
       <div class="kpi" style="--kpi-accent:var(--red)">
         <div class="label">Pendientes de censo</div>
         <div class="value" id="cKpiPendientes">–</div>
-        <div class="sub">no censados</div>
+        <div class="sub" id="cKpiPendientesPct">– % del total</div>
       </div>
       <div class="kpi" style="--kpi-accent:var(--amber)">
-        <div class="label">Pendientes &gt;60 días</div>
+        <div class="label">Pendientes &gt;30 días</div>
         <div class="value" id="cKpiViejos">–</div>
         <div class="sub">desde su ubicación</div>
       </div>
@@ -363,6 +365,15 @@
         <div class="panel-sub">Todos los distritos, ordenados por % de avance</div>
         <div id="censoAvanceDistrito" style="max-height:340px; overflow-y:auto; padding-right:4px;"></div>
       </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:16px;" id="censoPendientesPanel">
+      <div class="panel-head">
+        <h3>Activos pendientes de censo</h3>
+        <span class="badge" id="censoPendientesBadge"></span>
+      </div>
+      <div class="panel-sub">Clic en cualquier barra de canal, vendedor o distrito de arriba para filtrar aquí solo lo suyo — o usa el buscador de arriba para encontrar una placa puntual.</div>
+      <div style="overflow-x:auto; max-height:420px; overflow-y:auto;"><table id="tblCensoPendientes"></table></div>
     </div>
 
     <div class="panel" style="margin-bottom:16px;">
