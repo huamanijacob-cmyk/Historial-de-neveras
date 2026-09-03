@@ -430,6 +430,13 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
     // null = sin filtro (equivale a "Todos"). Array (incluso vacío) = filtro
     // explícito; un array vacío significa "no debe coincidir nada" (estilo Excel).
     getValues(){ return todosMode ? null : [...selected]; },
+    // Selecciona un único valor (usado al hacer clic en una barra de "Avance por...")
+    selectOnly(value){
+      todosMode = false;
+      selected = new Set([value]);
+      renderOptions(search.value);
+      updateSummary();
+    },
     clear(){ todosMode = true; selected.clear(); renderOptions(search.value); updateSummary(); }
   };
 }
@@ -1202,17 +1209,22 @@ function normalizeCenso(records){
     let fechaUbicacion = r['FECHA DE UBICACIÓN'];
     if(!(fechaUbicacion instanceof Date) || isNaN(fechaUbicacion?.getTime?.())) fechaUbicacion = null;
     const placa = (r['PLACA FÍSICA'] || r['PLACA SISTEMA'] || '').toString().trim();
+    const tipoActivo = (r['Tipo de Activo']||'Sin tipo').toString().trim() || 'Sin tipo';
+    // El Excel no trae "Triciclo" como valor de Canal (viene mezclado en Ambulatorio o vacío),
+    // pero operativamente sí es un canal propio — lo separamos usando el Tipo de Activo.
+    let canal = (r['Canal']||'').toString().trim() || 'Sin canal';
+    if(/TRICICLO/i.test(tipoActivo)) canal = 'Triciclo';
     return {
       activoFijo: r['Activo fijo'],
       placa,
-      tipoActivo: (r['Tipo de Activo']||'Sin tipo').toString().trim() || 'Sin tipo',
+      tipoActivo,
       marca: (r['MARCA']||'').toString().trim(),
       modelo: (r['MODELO']||'').toString().trim(),
       tamano: (r['TAMAÑO']||'').toString().trim(),
       cliente: esPatio ? 'Patio Sagadis' : razonSocial,
       esPatio,
       vendedor: (r['Vendedor']||'').toString().trim() || 'Sin vendedor',
-      canal: (r['Canal']||'').toString().trim() || 'Sin canal',
+      canal,
       canalVenta: (r['Canal Venta']||'').toString().trim(),
       distrito: (r['Distrito']||'').toString().trim() || 'Sin distrito',
       status,
@@ -1282,21 +1294,119 @@ function applyCensoFiltersAndRender(){
   renderCensoAvance('censoAvanceDistrito', rows, 'distrito', null);
   renderCensoAntiguedad(rows);
   renderCensoMap(rows);
+  renderCensoPendientesTable(rows);
+  renderCensoActiveFilters(f);
 }
+
+// ---------------- Activos pendientes (tabla de detalle) ----------------
+function renderCensoPendientesTable(rows){
+  const pend = rows.filter(r=>!r.censado).slice().sort((a,b)=>{
+    const da = a.fechaUbicacion ? a.fechaUbicacion.getTime() : 0;
+    const db = b.fechaUbicacion ? b.fechaUbicacion.getTime() : 0;
+    return da - db; // los más antiguos (más urgentes) primero
+  });
+  document.getElementById('censoPendientesBadge').textContent = `${pend.length.toLocaleString('es-PE')} pendientes`;
+  const MAX_ROWS = 300; // límite de filas pintadas en la tabla, por rendimiento del navegador
+  const now = new Date();
+  let html = '<thead><tr><th>Placa</th><th>Cliente</th><th>Canal</th><th>Vendedor</th><th>Distrito</th><th>Status</th><th>Días pendiente</th></tr></thead><tbody>';
+  if(pend.length === 0){
+    html += '<tr><td colspan="7" style="text-align:center; color:var(--muted2); padding:18px;">No hay activos pendientes con estos filtros 🎉</td></tr>';
+  }
+  pend.slice(0, MAX_ROWS).forEach(r=>{
+    const dias = r.fechaUbicacion ? Math.floor((now - r.fechaUbicacion)/86400000) : null;
+    const diasTxt = dias === null ? 'Sin fecha' : `${dias} días`;
+    const diasColor = dias === null ? 'var(--muted2)' : dias >= 90 ? 'var(--red)' : dias >= 30 ? 'var(--amber)' : 'var(--muted)';
+    html += `<tr>
+      <td class="mono">${r.placa || '–'}</td>
+      <td>${r.cliente}</td>
+      <td>${r.canal}</td>
+      <td>${r.vendedor}</td>
+      <td>${r.distrito}</td>
+      <td>${r.status}</td>
+      <td style="color:${diasColor}; font-weight:600;">${diasTxt}</td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  document.getElementById('tblCensoPendientes').innerHTML = html;
+  if(pend.length > MAX_ROWS){
+    document.getElementById('tblCensoPendientes').insertAdjacentHTML('afterend',
+      `<div style="text-align:center; font-size:11.5px; color:var(--muted2); padding:8px;" id="censoPendientesMoreNote">
+        Mostrando los ${MAX_ROWS} más antiguos de ${pend.length.toLocaleString('es-PE')} — usa los filtros o el buscador para acotar.
+      </div>`);
+  } else {
+    document.getElementById('censoPendientesMoreNote')?.remove();
+  }
+}
+
+// ---------------- Filtros activos (chips visibles y removibles) ----------------
+const CENSO_FILTER_LABELS = { vendedor:'Vendedor', canal:'Canal', status:'Status', distrito:'Distrito' };
+const CENSO_FILTER_MSEL = () => ({ vendedor: msVendedor, canal: msCanal, status: msStatus, distrito: msDistritoCenso });
+
+function renderCensoActiveFilters(f){
+  const wrap = document.getElementById('censoActiveFilters');
+  const chips = [];
+  const msels = CENSO_FILTER_MSEL();
+  ['vendedor','canal','status','distrito'].forEach(field=>{
+    const vals = f[field];
+    if(vals === null) return; // null = "Todos", no se muestra chip
+    if(vals.length === 0){
+      chips.push({ text: `${CENSO_FILTER_LABELS[field]}: ninguno seleccionado`, onClear: () => msels[field].clear() });
+    } else if(vals.length <= 2){
+      chips.push({ text: `${CENSO_FILTER_LABELS[field]}: ${vals.join(', ')}`, onClear: () => msels[field].clear() });
+    } else {
+      chips.push({ text: `${CENSO_FILTER_LABELS[field]}: ${vals.length} seleccionados`, onClear: () => msels[field].clear() });
+    }
+  });
+  if(f.onlyPatio){
+    chips.push({ text: 'Solo patio Sagadis', onClear: () => { document.getElementById('cFOnlyPatio').checked = false; } });
+  }
+  if(f.search){
+    chips.push({ text: `Búsqueda: "${f.search}"`, onClear: () => { document.getElementById('cFSearch').value = ''; } });
+  }
+  if(chips.length === 0){ wrap.innerHTML = ''; return; }
+  wrap.innerHTML = chips.map((c,i)=>`
+    <span class="filter-chip">${c.text}<span class="chip-x" data-chip="${i}">✕</span></span>
+  `).join('');
+  wrap.querySelectorAll('.chip-x').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      chips[+el.dataset.chip].onClear();
+      applyCensoFiltersAndRender(); // .clear() de los msel no dispara onChange por sí solo
+    });
+  });
+}
+
+// Clic en cualquier barra de "Avance por Canal / Vendedor / Distrito": filtra por
+// ese valor y baja la vista hasta la tabla de activos pendientes correspondiente.
+document.addEventListener('click', (e)=>{
+  const bar = e.target.closest('.bar-clickable');
+  if(!bar) return;
+  const field = bar.dataset.field; // 'canal' | 'vendedor' | 'distrito'
+  const label = bar.dataset.label;
+  const msels = CENSO_FILTER_MSEL();
+  const target = msels[field];
+  if(!target) return;
+  target.selectOnly(label);
+  applyCensoFiltersAndRender();
+  document.getElementById('censoPendientesPanel')?.scrollIntoView({ behavior:'smooth', block:'start' });
+});
+
+function fmtPct(n){ return n.toFixed(1) + '%'; } // 1 decimal siempre (ej. 99.9%, nunca redondea a 100%)
 
 function renderCensoKPIs(rows){
   const total = rows.length;
   const censados = rows.filter(r=>r.censado).length;
   const pendientes = total - censados;
-  const pct = total ? Math.round(censados/total*100) : 0;
+  const pct = total ? (censados/total*100) : 0;
+  const pctPend = total ? (pendientes/total*100) : 0;
   const now = new Date();
-  const viejos = rows.filter(r=> !r.censado && r.fechaUbicacion && (now - r.fechaUbicacion)/86400000 >= 60).length;
+  const viejos = rows.filter(r=> !r.censado && r.fechaUbicacion && (now - r.fechaUbicacion)/86400000 >= 30).length;
   const patio = rows.filter(r=>r.esPatio).length;
   document.getElementById('cKpiTotal').textContent = total.toLocaleString('es-PE');
   document.getElementById('cKpiTotalSub').textContent = `de ${RAW_CENSO.length.toLocaleString('es-PE')} totales`;
   document.getElementById('cKpiCensados').textContent = censados.toLocaleString('es-PE');
-  document.getElementById('cKpiPct').textContent = `${pct}% de avance`;
+  document.getElementById('cKpiPct').textContent = `${fmtPct(pct)} de avance`;
   document.getElementById('cKpiPendientes').textContent = pendientes.toLocaleString('es-PE');
+  document.getElementById('cKpiPendientesPct').textContent = `${fmtPct(pctPend)} del total`;
   document.getElementById('cKpiViejos').textContent = viejos.toLocaleString('es-PE');
   document.getElementById('cKpiPatio').textContent = patio.toLocaleString('es-PE');
 }
@@ -1305,12 +1415,12 @@ function renderCensoAvance(containerId, rows, field, topN){
   const groups = {};
   rows.forEach(r=>{
     const k = r[field];
-    if(!groups[k]) groups[k] = {total:0, censados:0};
+    if(!groups[k]) groups[k] = {total:0, censados:0, pendientesRows:[]};
     groups[k].total++;
-    if(r.censado) groups[k].censados++;
+    if(r.censado) groups[k].censados++; else groups[k].pendientesRows.push(r);
   });
   const items = Object.entries(groups)
-    .map(([label,g])=>({ label, pct: g.total ? Math.round(g.censados/g.total*100) : 0, total:g.total, censados:g.censados }))
+    .map(([label,g])=>({ label, pct: g.total ? (g.censados/g.total*100) : 0, total:g.total, censados:g.censados, pendientes:g.total-g.censados }))
     .sort((a,b)=> b.total - a.total);
   const limited = (topN ? items.slice(0, topN) : items).sort((a,b)=> b.pct - a.pct);
   const container = document.getElementById(containerId);
@@ -1320,23 +1430,24 @@ function renderCensoAvance(containerId, rows, field, topN){
   }
   container.innerHTML = limited.map(it=>{
     const color = it.pct >= 95 ? '#2e9e4f' : it.pct >= 80 ? 'var(--gold)' : 'var(--red)';
+    const tip = `${it.label}: ${it.pendientes.toLocaleString('es-PE')} pendientes de ${it.total.toLocaleString('es-PE')} activos — clic para ver el detalle`;
     return `
-    <div class="bar-wrap">
-      <div class="bar-label" title="${it.label} · ${it.censados}/${it.total}">${it.label}</div>
+    <div class="bar-wrap bar-clickable" data-field="${field}" data-label="${it.label.replace(/"/g,'&quot;')}" title="${tip}">
+      <div class="bar-label">${it.label}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${it.pct}%; background:${color};"></div></div>
-      <div class="bar-val">${it.pct}%</div>
+      <div class="bar-val">${fmtPct(it.pct)}</div>
     </div>`;
   }).join('');
 }
 
 function renderCensoAntiguedad(rows){
   const now = new Date();
-  const buckets = {'Menos de 45 días':0, 'Entre 45 y 60 días':0, 'Entre 60 y 90 días':0, 'Mayor a 90 días':0, 'Sin fecha de ubicación':0};
+  const buckets = {'Menos de 30 días':0, 'Entre 30 y 60 días':0, 'Entre 60 y 90 días':0, 'Mayor a 90 días':0, 'Sin fecha de ubicación':0};
   rows.filter(r=>!r.censado).forEach(r=>{
     if(!r.fechaUbicacion){ buckets['Sin fecha de ubicación']++; return; }
     const dias = Math.floor((now - r.fechaUbicacion)/86400000);
-    if(dias < 45) buckets['Menos de 45 días']++;
-    else if(dias < 60) buckets['Entre 45 y 60 días']++;
+    if(dias < 30) buckets['Menos de 30 días']++;
+    else if(dias < 60) buckets['Entre 30 y 60 días']++;
     else if(dias < 90) buckets['Entre 60 y 90 días']++;
     else buckets['Mayor a 90 días']++;
   });
