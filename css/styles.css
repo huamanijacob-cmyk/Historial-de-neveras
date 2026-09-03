@@ -248,3 +248,57 @@
 .censo-map-legend .dot{
   display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle;
 }
+
+/* ---- selector de rango de fechas personalizado ---- */
+.drange{ position:relative; min-width:200px; }
+.drange-control{
+  background:var(--panel2); border:1px solid var(--border); color:var(--text);
+  border-radius:7px; padding:7px 10px; font-size:12.5px; font-family:'IBM Plex Mono',monospace;
+  width:100%; display:flex; align-items:center; justify-content:space-between; gap:6px; cursor:pointer;
+}
+.drange-control:hover{ border-color:var(--navy); }
+.drange-control.has-value{ border-color:var(--navy); background:var(--navy-soft); color:var(--navy-dark); font-weight:600; }
+.drange-summary{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.drange-icon{ color:var(--muted2); font-size:10px; flex-shrink:0; transition:transform .15s ease; }
+.drange.open .drange-icon{ transform:rotate(180deg); }
+.drange-panel{
+  display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:40;
+  background:var(--panel); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px rgba(16,24,48,.16);
+  padding:14px; width:290px;
+  opacity:0; transform:translateY(-4px); transition:opacity .12s ease, transform .12s ease;
+}
+.drange.open .drange-panel{ display:block; opacity:1; transform:translateY(0); }
+.drange-presets{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+.drange-preset{
+  font-size:11px; font-family:'Inter',sans-serif; color:var(--navy); background:var(--navy-soft);
+  border:1px solid #c9d3ef; border-radius:20px; padding:4px 10px; cursor:pointer; white-space:nowrap;
+}
+.drange-preset:hover{ background:var(--navy); color:#fff; }
+.drange-month-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.drange-month-label{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13.5px; color:var(--navy-dark); }
+.drange-nav-btn{
+  background:var(--panel2); border:1px solid var(--border); border-radius:6px; width:26px; height:26px;
+  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--navy); font-size:12px;
+}
+.drange-nav-btn:hover{ border-color:var(--navy); }
+.drange-nav-btn.disabled{ opacity:.3; pointer-events:none; }
+.drange-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; color:var(--muted2); font-weight:600; margin-bottom:4px; }
+.drange-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+.drange-day{
+  aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:12px; font-family:'IBM Plex Mono',monospace;
+  border-radius:6px; cursor:pointer; color:var(--text);
+}
+.drange-day:hover:not(.disabled){ background:var(--navy-soft); }
+.drange-day.disabled{ color:var(--muted2); opacity:.35; cursor:default; }
+.drange-day.empty{ visibility:hidden; }
+.drange-day.in-range{ background:var(--navy-soft); border-radius:0; }
+.drange-day.range-start{ background:var(--navy); color:#fff; border-radius:6px 0 0 6px; }
+.drange-day.range-end{ background:var(--navy); color:#fff; border-radius:0 6px 6px 0; }
+.drange-day.range-start.range-end{ border-radius:6px; }
+.drange-footer{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.drange-hint{ font-size:11px; color:var(--muted2); }
+.drange-apply{
+  background:var(--navy); color:#fff; border:none; border-radius:7px; padding:6px 14px;
+  font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;
+}
+.drange-apply:hover{ background:var(--navy-dark); }
