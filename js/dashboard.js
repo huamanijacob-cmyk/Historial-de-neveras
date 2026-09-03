@@ -340,6 +340,7 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
 
   function updateSummary(){
     if(todosMode) summary.textContent = placeholder;
+    else if(selected.size === 0) summary.textContent = 'Ninguno seleccionado';
     else if(selected.size === 1) summary.textContent = [...selected][0];
     else summary.textContent = `${selected.size} seleccionados`;
     control.classList.toggle('has-value', !todosMode);
@@ -370,12 +371,10 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
       }
     } else {
       if(checked) selected.add(v); else selected.delete(v);
-      if(selected.size === 0){
-        // no se permite quedar en 0: se vuelve a "Todos"
-        todosMode = true;
-        selected.clear();
-      } else if(selected.size === allOptions.length){
-        // si terminan marcados todos otra vez, se colapsa a "Todos" (más limpio)
+      // Si terminan marcados todos de nuevo, se colapsa a "Todos" (más limpio).
+      // Ya NO forzamos volver a "Todos" al llegar a 0 — estilo Excel, se permite
+      // quedar en "ninguno seleccionado" a propósito (el filtro excluye todo el campo).
+      if(selected.size === allOptions.length){
         todosMode = true;
         selected.clear();
       }
@@ -392,15 +391,11 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
   });
 
   todosCheckbox.addEventListener('change', ()=>{
-    if(todosCheckbox.checked){
-      todosMode = true;
-      selected.clear();
-    } else {
-      // no tiene sentido desmarcar "Todos" sin elegir nada en su lugar —
-      // se revierte para no permitir un filtro vacío/sin sentido
-      todosCheckbox.checked = true;
-      return;
-    }
+    // Estilo Excel: el checkbox "Todos" es un interruptor real.
+    // Marcarlo = seleccionar todo. Desmarcarlo = deseleccionar todo (el filtro
+    // pasa a excluir el campo por completo, no a "mostrar todo").
+    todosMode = todosCheckbox.checked;
+    selected.clear();
     renderOptions(search.value);
     updateSummary();
     onChange();
@@ -411,7 +406,7 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
   control.addEventListener('click', (e)=>{
     e.stopPropagation();
     const isOpen = container.classList.contains('open');
-    document.querySelectorAll('.msel.open').forEach(m=>m.classList.remove('open'));
+    document.querySelectorAll('.msel.open, .drange.open').forEach(m=>m.classList.remove('open'));
     if(!isOpen){
       container.classList.add('open');
       search.value = '';
@@ -428,20 +423,182 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
       allOptions = newOptions;
       if(!todosMode){
         selected = new Set([...selected].filter(v=>allOptions.includes(v))); // descarta selección que ya no existe
-        if(selected.size === 0){ todosMode = true; }
       }
       renderOptions(search.value);
       updateSummary();
     },
-    getValues(){ return todosMode ? [] : [...selected]; }, // [] = sin filtro (equivale a "Todos")
+    // null = sin filtro (equivale a "Todos"). Array (incluso vacío) = filtro
+    // explícito; un array vacío significa "no debe coincidir nada" (estilo Excel).
+    getValues(){ return todosMode ? null : [...selected]; },
     clear(){ todosMode = true; selected.clear(); renderOptions(search.value); updateSummary(); }
+  };
+}
+
+// ---------------- Componente: selector de rango de fechas (calendario propio) ----------------
+function createDateRangePicker(containerId, {minDate, maxDate, onChange}){
+  const container = document.getElementById(containerId);
+  if(!container) return null;
+  const norm = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  minDate = norm(minDate); maxDate = norm(maxDate);
+
+  container.innerHTML = `
+    <button type="button" class="drange-control">
+      <span class="drange-summary"></span>
+      <span class="drange-icon">▾</span>
+    </button>
+    <div class="drange-panel">
+      <div class="drange-presets">
+        <span class="drange-preset" data-preset="all">Todo el rango</span>
+        <span class="drange-preset" data-preset="7">Últimos 7 días</span>
+        <span class="drange-preset" data-preset="30">Últimos 30 días</span>
+      </div>
+      <div class="drange-month-nav">
+        <span class="drange-nav-btn" data-nav="-1">‹</span>
+        <span class="drange-month-label"></span>
+        <span class="drange-nav-btn" data-nav="1">›</span>
+      </div>
+      <div class="drange-weekdays"><span>D</span><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span></div>
+      <div class="drange-days"></div>
+      <div class="drange-footer">
+        <span class="drange-hint">Elige la fecha de inicio</span>
+        <button type="button" class="drange-apply">Listo</button>
+      </div>
+    </div>
+  `;
+  const control = container.querySelector('.drange-control');
+  const summary = container.querySelector('.drange-summary');
+  const monthLabel = container.querySelector('.drange-month-label');
+  const daysWrap = container.querySelector('.drange-days');
+  const hint = container.querySelector('.drange-hint');
+  const prevBtn = container.querySelector('[data-nav="-1"]');
+  const nextBtn = container.querySelector('[data-nav="1"]');
+  const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  let rangeStart = minDate, rangeEnd = maxDate;
+  let pickStage = 'start'; // 'start' | 'end' — en qué punto de la selección de 2 clics estamos
+  let tempStart = rangeStart, tempEnd = rangeEnd;
+  let viewMonth = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+
+  function updateSummary(){
+    const full = rangeStart.getTime()===minDate.getTime() && rangeEnd.getTime()===maxDate.getTime();
+    summary.textContent = full ? 'Todo el rango' : `${fmtDate(rangeStart)} → ${fmtDate(rangeEnd)}`;
+    control.classList.toggle('has-value', !full);
+  }
+
+  function renderCalendar(){
+    monthLabel.textContent = `${MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()}`;
+    const firstDow = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay();
+    const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth()+1, 0).getDate();
+    let html = '';
+    for(let i=0;i<firstDow;i++) html += `<span class="drange-day empty"></span>`;
+    for(let day=1; day<=daysInMonth; day++){
+      const d = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day);
+      const disabled = d < minDate || d > maxDate;
+      let cls = 'drange-day';
+      if(disabled){
+        cls += ' disabled';
+      } else {
+        if(d >= tempStart && d <= tempEnd) cls += ' in-range';
+        if(d.getTime()===tempStart.getTime()) cls += ' range-start';
+        if(d.getTime()===tempEnd.getTime()) cls += ' range-end';
+      }
+      html += `<span class="${cls}" data-day="${disabled?'':toDateInputVal(d)}">${day}</span>`;
+    }
+    daysWrap.innerHTML = html;
+    prevBtn.classList.toggle('disabled', viewMonth.getFullYear()===minDate.getFullYear() && viewMonth.getMonth()===minDate.getMonth());
+    nextBtn.classList.toggle('disabled', viewMonth.getFullYear()===maxDate.getFullYear() && viewMonth.getMonth()===maxDate.getMonth());
+  }
+
+  daysWrap.addEventListener('click', (e)=>{
+    const el = e.target.closest('.drange-day');
+    if(!el || el.classList.contains('disabled') || el.classList.contains('empty')) return;
+    const d = new Date(el.dataset.day + 'T00:00:00');
+    if(pickStage === 'start'){
+      tempStart = d; tempEnd = d;
+      pickStage = 'end';
+      hint.textContent = 'Elige la fecha de fin';
+    } else {
+      if(d < tempStart){ tempEnd = tempStart; tempStart = d; } else { tempEnd = d; }
+      pickStage = 'start';
+      hint.textContent = 'Elige la fecha de inicio';
+      rangeStart = tempStart; rangeEnd = tempEnd;
+      updateSummary();
+      onChange();
+    }
+    renderCalendar();
+  });
+
+  prevBtn.addEventListener('click', ()=>{
+    if(prevBtn.classList.contains('disabled')) return;
+    viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth()-1, 1);
+    renderCalendar();
+  });
+  nextBtn.addEventListener('click', ()=>{
+    if(nextBtn.classList.contains('disabled')) return;
+    viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth()+1, 1);
+    renderCalendar();
+  });
+
+  container.querySelectorAll('.drange-preset').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const p = btn.dataset.preset;
+      if(p === 'all'){
+        tempStart = minDate; tempEnd = maxDate;
+      } else {
+        const days = parseInt(p, 10);
+        tempEnd = maxDate;
+        tempStart = new Date(maxDate);
+        tempStart.setDate(tempStart.getDate() - (days - 1));
+        if(tempStart < minDate) tempStart = minDate;
+      }
+      rangeStart = tempStart; rangeEnd = tempEnd;
+      pickStage = 'start';
+      hint.textContent = 'Elige la fecha de inicio';
+      viewMonth = new Date(tempEnd.getFullYear(), tempEnd.getMonth(), 1);
+      renderCalendar();
+      updateSummary();
+      onChange();
+    });
+  });
+
+  container.querySelector('.drange-apply').addEventListener('click', ()=> container.classList.remove('open'));
+
+  control.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const isOpen = container.classList.contains('open');
+    document.querySelectorAll('.msel.open, .drange.open').forEach(m=>m.classList.remove('open'));
+    if(!isOpen){
+      container.classList.add('open');
+      tempStart = rangeStart; tempEnd = rangeEnd; pickStage = 'start';
+      hint.textContent = 'Elige la fecha de inicio';
+      viewMonth = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), 1);
+      renderCalendar();
+    }
+  });
+  document.addEventListener('click', (e)=>{
+    if(!container.contains(e.target)) container.classList.remove('open');
+  });
+
+  updateSummary();
+
+  return {
+    getRange(){
+      return {
+        desde: rangeStart,
+        hasta: new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate(), 23, 59, 59)
+      };
+    },
+    reset(){
+      rangeStart = minDate; rangeEnd = maxDate; tempStart = minDate; tempEnd = maxDate;
+      updateSummary();
+    }
   };
 }
 
 // ---------------- Filters ----------------
 function uniqueSorted(arr){ return [...new Set(arr)].sort((a,b)=>a.localeCompare(b,'es')); }
 
-let msDistribuidor, msDistrito, msEvento;
+let msDistribuidor, msDistrito, msEvento, drFecha;
 
 function initFiltersUI(){
   const distribuidores = uniqueSorted(RAW.map(r=>r.distribuidor));
@@ -457,20 +614,18 @@ function initFiltersUI(){
   msDistrito.setOptions(distritos);
   msEvento.setOptions(eventos);
 
-  document.getElementById('fDesde').value = toDateInputVal(minDate);
-  document.getElementById('fHasta').value = toDateInputVal(maxDate);
-  document.getElementById('fDesde').min = toDateInputVal(minDate);
-  document.getElementById('fHasta').max = toDateInputVal(maxDate);
+  // El selector de fechas se reconstruye cada vez que cargan datos nuevos, porque
+  // su rango mínimo/máximo depende del archivo cargado.
+  drFecha = createDateRangePicker('fFechaRango', {minDate, maxDate, onChange: applyFiltersAndRender});
 
-  ['fDesde','fHasta','fSearch','fOnlyOfficial'].forEach(id=>{
+  ['fSearch','fOnlyOfficial'].forEach(id=>{
     document.getElementById(id).addEventListener('input', applyFiltersAndRender);
   });
   document.getElementById('clearFilters').onclick = () => {
     msDistribuidor.clear();
     msDistrito.clear();
     msEvento.clear();
-    document.getElementById('fDesde').value = toDateInputVal(minDate);
-    document.getElementById('fHasta').value = toDateInputVal(maxDate);
+    drFecha.reset();
     document.getElementById('fSearch').value = '';
     document.getElementById('fOnlyOfficial').checked = false;
     applyFiltersAndRender();
@@ -479,20 +634,20 @@ function initFiltersUI(){
 
 function getFilters(){
   return {
-    distribuidor: msDistribuidor ? msDistribuidor.getValues() : [],
-    distrito: msDistrito ? msDistrito.getValues() : [],
-    evento: msEvento ? msEvento.getValues() : [],
-    desde: document.getElementById('fDesde').value ? new Date(document.getElementById('fDesde').value+'T00:00:00') : null,
-    hasta: document.getElementById('fHasta').value ? new Date(document.getElementById('fHasta').value+'T23:59:59') : null,
+    distribuidor: msDistribuidor ? msDistribuidor.getValues() : null,
+    distrito: msDistrito ? msDistrito.getValues() : null,
+    evento: msEvento ? msEvento.getValues() : null,
+    desde: drFecha ? drFecha.getRange().desde : null,
+    hasta: drFecha ? drFecha.getRange().hasta : null,
     search: document.getElementById('fSearch').value.trim().toLowerCase(),
     onlyOfficial: document.getElementById('fOnlyOfficial').checked
   };
 }
 
 function matchesRow(r, f){
-  if(f.distribuidor.length && !f.distribuidor.includes(r.distribuidor)) return false;
-  if(f.distrito.length && !f.distrito.includes(r.locacion)) return false;
-  if(f.evento.length && !f.evento.includes(r.evento)) return false;
+  if(f.distribuidor !== null && !f.distribuidor.includes(r.distribuidor)) return false;
+  if(f.distrito !== null && !f.distrito.includes(r.locacion)) return false;
+  if(f.evento !== null && !f.evento.includes(r.evento)) return false;
   if(f.desde && r.fecha < f.desde) return false;
   if(f.hasta && r.fecha > f.hasta) return false;
   if(f.search){
@@ -502,8 +657,8 @@ function matchesRow(r, f){
   return true;
 }
 function matchesEpisode(ep, f){
-  if(f.distribuidor.length && !f.distribuidor.includes(ep.distribuidor)) return false;
-  if(f.distrito.length && !f.distrito.includes(ep.locacion)) return false;
+  if(f.distribuidor !== null && !f.distribuidor.includes(ep.distribuidor)) return false;
+  if(f.distrito !== null && !f.distrito.includes(ep.locacion)) return false;
   if(f.desde && ep.start < f.desde) return false;
   if(f.hasta && ep.start > f.hasta) return false;
   if(f.onlyOfficial && ep.hours < 1) return false;
@@ -1096,20 +1251,20 @@ function initCensoFiltersUI(){
 
 function getCensoFilters(){
   return {
-    vendedor: msVendedor ? msVendedor.getValues() : [],
-    canal: msCanal ? msCanal.getValues() : [],
-    status: msStatus ? msStatus.getValues() : [],
-    distrito: msDistritoCenso ? msDistritoCenso.getValues() : [],
+    vendedor: msVendedor ? msVendedor.getValues() : null,
+    canal: msCanal ? msCanal.getValues() : null,
+    status: msStatus ? msStatus.getValues() : null,
+    distrito: msDistritoCenso ? msDistritoCenso.getValues() : null,
     search: document.getElementById('cFSearch').value.trim().toLowerCase(),
     onlyPatio: document.getElementById('cFOnlyPatio').checked
   };
 }
 
 function matchesCenso(r, f){
-  if(f.vendedor.length && !f.vendedor.includes(r.vendedor)) return false;
-  if(f.canal.length && !f.canal.includes(r.canal)) return false;
-  if(f.status.length && !f.status.includes(r.status)) return false;
-  if(f.distrito.length && !f.distrito.includes(r.distrito)) return false;
+  if(f.vendedor !== null && !f.vendedor.includes(r.vendedor)) return false;
+  if(f.canal !== null && !f.canal.includes(r.canal)) return false;
+  if(f.status !== null && !f.status.includes(r.status)) return false;
+  if(f.distrito !== null && !f.distrito.includes(r.distrito)) return false;
   if(f.onlyPatio && !r.esPatio) return false;
   if(f.search){
     const s = f.search;
