@@ -123,15 +123,15 @@
       <label>Buscar cliente / activo</label>
       <input type="text" id="fSearch" placeholder="Nombre, código, IMEI...">
     </div>
-    <div class="filter-group">
-      <label style="visibility:hidden;">·</label>
-      <label class="toggle-wrap" style="display:flex; align-items:center; gap:7px; cursor:pointer; text-transform:none; font-size:12.5px; color:var(--text); font-weight:400;">
-        <input type="checkbox" id="fOnlyOfficial" style="accent-color:var(--navy); width:15px; height:15px;">
-        Solo cortes ≥1h (criterio oficial de alerta)
-      </label>
-    </div>
     <div class="spacer"></div>
     <span class="clear-link" id="clearFilters">Limpiar filtros</span>
+  </div>
+
+  <div class="filters-row2">
+    <label class="toggle-wrap">
+      <input type="checkbox" id="fOnlyOfficial">
+      Solo cortes ≥1h (criterio oficial de alerta)
+    </label>
   </div>
 
   <div class="panel" id="defsPanel" style="margin-bottom:18px; padding:13px 18px;">
