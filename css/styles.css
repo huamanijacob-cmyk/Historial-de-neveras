@@ -359,3 +359,10 @@
 .dsingle-day.disabled{ color:var(--muted2); opacity:.35; cursor:default; }
 .dsingle-day.empty{ visibility:hidden; }
 .dsingle-day.selected{ background:var(--navy); color:#fff; font-weight:700; }
+
+/* ---- segunda fila de filtros (checkbox suelto, no compite por espacio) ---- */
+.filters-row2{ margin:-10px 0 18px; padding:0 2px; }
+.filters-row2 .toggle-wrap{
+  display:flex; align-items:center; gap:7px; cursor:pointer; font-size:12.5px; color:var(--text); font-weight:400;
+}
+.filters-row2 .toggle-wrap input{ accent-color:var(--navy); width:15px; height:15px; }
