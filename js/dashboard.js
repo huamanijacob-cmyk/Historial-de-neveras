@@ -406,7 +406,7 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
   control.addEventListener('click', (e)=>{
     e.stopPropagation();
     const isOpen = container.classList.contains('open');
-    document.querySelectorAll('.msel.open, .drange.open').forEach(m=>m.classList.remove('open'));
+    document.querySelectorAll('.msel.open, .drange.open, .dsingle.open').forEach(m=>m.classList.remove('open'));
     if(!isOpen){
       container.classList.add('open');
       search.value = '';
@@ -442,6 +442,112 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
 }
 
 // ---------------- Componente: selector de rango de fechas (calendario propio) ----------------
+// ---------------- Componente: selector de UNA fecha (Desde / Hasta por separado) ----------------
+function createSingleDatePicker(containerId, {minDate, maxDate, initialDate, onChange}){
+  const container = document.getElementById(containerId);
+  if(!container) return null;
+  const norm = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  minDate = norm(minDate); maxDate = norm(maxDate);
+  let selectedDate = norm(initialDate || minDate);
+  let viewMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+  const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  container.innerHTML = `
+    <button type="button" class="dsingle-control">
+      <span class="dsingle-summary"></span>
+      <span class="dsingle-icon">▾</span>
+    </button>
+    <div class="dsingle-panel">
+      <div class="dsingle-month-nav">
+        <span class="dsingle-nav-btn" data-nav="-1">‹</span>
+        <span class="dsingle-month-label"></span>
+        <span class="dsingle-nav-btn" data-nav="1">›</span>
+      </div>
+      <div class="dsingle-weekdays"><span>D</span><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span></div>
+      <div class="dsingle-days"></div>
+    </div>
+  `;
+  const control = container.querySelector('.dsingle-control');
+  const summary = container.querySelector('.dsingle-summary');
+  const monthLabel = container.querySelector('.dsingle-month-label');
+  const daysWrap = container.querySelector('.dsingle-days');
+  const prevBtn = container.querySelector('[data-nav="-1"]');
+  const nextBtn = container.querySelector('[data-nav="1"]');
+
+  function updateSummary(){
+    summary.textContent = fmtDate(selectedDate);
+    control.classList.add('has-value');
+  }
+
+  function renderCalendar(){
+    monthLabel.textContent = `${MONTHS[viewMonth.getMonth()]} ${viewMonth.getFullYear()}`;
+    const firstDow = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay();
+    const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth()+1, 0).getDate();
+    let html = '';
+    for(let i=0;i<firstDow;i++) html += `<span class="dsingle-day empty"></span>`;
+    for(let day=1; day<=daysInMonth; day++){
+      const d = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day);
+      const disabled = d < minDate || d > maxDate;
+      let cls = 'dsingle-day';
+      if(disabled) cls += ' disabled';
+      else if(d.getTime()===selectedDate.getTime()) cls += ' selected';
+      html += `<span class="${cls}" data-day="${disabled?'':toDateInputVal(d)}">${day}</span>`;
+    }
+    daysWrap.innerHTML = html;
+    prevBtn.classList.toggle('disabled', viewMonth.getFullYear()===minDate.getFullYear() && viewMonth.getMonth()===minDate.getMonth());
+    nextBtn.classList.toggle('disabled', viewMonth.getFullYear()===maxDate.getFullYear() && viewMonth.getMonth()===maxDate.getMonth());
+  }
+
+  daysWrap.addEventListener('click', (e)=>{
+    const el = e.target.closest('.dsingle-day');
+    if(!el || el.classList.contains('disabled') || el.classList.contains('empty')) return;
+    selectedDate = new Date(el.dataset.day + 'T00:00:00');
+    updateSummary();
+    renderCalendar();
+    container.classList.remove('open');
+    onChange(selectedDate);
+  });
+
+  prevBtn.addEventListener('click', ()=>{
+    if(prevBtn.classList.contains('disabled')) return;
+    viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth()-1, 1);
+    renderCalendar();
+  });
+  nextBtn.addEventListener('click', ()=>{
+    if(nextBtn.classList.contains('disabled')) return;
+    viewMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth()+1, 1);
+    renderCalendar();
+  });
+
+  control.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    const isOpen = container.classList.contains('open');
+    document.querySelectorAll('.msel.open, .drange.open, .dsingle.open').forEach(m=>m.classList.remove('open'));
+    if(!isOpen){
+      container.classList.add('open');
+      viewMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+      renderCalendar();
+    }
+  });
+  document.addEventListener('click', (e)=>{
+    if(!container.contains(e.target)) container.classList.remove('open');
+  });
+
+  updateSummary();
+
+  return {
+    getDate(){ return selectedDate; },
+    setBounds(newMin, newMax){
+      minDate = norm(newMin); maxDate = norm(newMax);
+      if(selectedDate < minDate) selectedDate = minDate;
+      if(selectedDate > maxDate) selectedDate = maxDate;
+      updateSummary();
+      if(container.classList.contains('open')) renderCalendar();
+    },
+    setDate(d){ selectedDate = norm(d); updateSummary(); if(container.classList.contains('open')) renderCalendar(); }
+  };
+}
+
 function createDateRangePicker(containerId, {minDate, maxDate, onChange}){
   const container = document.getElementById(containerId);
   if(!container) return null;
@@ -573,7 +679,7 @@ function createDateRangePicker(containerId, {minDate, maxDate, onChange}){
   control.addEventListener('click', (e)=>{
     e.stopPropagation();
     const isOpen = container.classList.contains('open');
-    document.querySelectorAll('.msel.open, .drange.open').forEach(m=>m.classList.remove('open'));
+    document.querySelectorAll('.msel.open, .drange.open, .dsingle.open').forEach(m=>m.classList.remove('open'));
     if(!isOpen){
       container.classList.add('open');
       tempStart = rangeStart; tempEnd = rangeEnd; pickStage = 'start';
@@ -605,7 +711,7 @@ function createDateRangePicker(containerId, {minDate, maxDate, onChange}){
 // ---------------- Filters ----------------
 function uniqueSorted(arr){ return [...new Set(arr)].sort((a,b)=>a.localeCompare(b,'es')); }
 
-let msDistribuidor, msDistrito, msEvento, drFecha;
+let msDistribuidor, msDistrito, msEvento, dpDesde, dpHasta;
 
 function initFiltersUI(){
   const distribuidores = uniqueSorted(RAW.map(r=>r.distribuidor));
@@ -621,9 +727,17 @@ function initFiltersUI(){
   msDistrito.setOptions(distritos);
   msEvento.setOptions(eventos);
 
-  // El selector de fechas se reconstruye cada vez que cargan datos nuevos, porque
-  // su rango mínimo/máximo depende del archivo cargado.
-  drFecha = createDateRangePicker('fFechaRango', {minDate, maxDate, onChange: applyFiltersAndRender});
+  // Dos calendarios independientes (Desde / Hasta). Se reconstruyen cada vez que
+  // cargan datos nuevos, porque su rango mínimo/máximo depende del archivo cargado.
+  // Se limitan entre sí: Desde no puede ser posterior a Hasta, y viceversa.
+  dpDesde = createSingleDatePicker('fFechaDesde', {
+    minDate, maxDate, initialDate: minDate,
+    onChange: (d) => { dpHasta.setBounds(d, maxDate); applyFiltersAndRender(); }
+  });
+  dpHasta = createSingleDatePicker('fFechaHasta', {
+    minDate, maxDate, initialDate: maxDate,
+    onChange: (d) => { dpDesde.setBounds(minDate, d); applyFiltersAndRender(); }
+  });
 
   ['fSearch','fOnlyOfficial'].forEach(id=>{
     document.getElementById(id).addEventListener('input', applyFiltersAndRender);
@@ -632,7 +746,10 @@ function initFiltersUI(){
     msDistribuidor.clear();
     msDistrito.clear();
     msEvento.clear();
-    drFecha.reset();
+    dpDesde.setBounds(minDate, maxDate);
+    dpDesde.setDate(minDate);
+    dpHasta.setBounds(minDate, maxDate);
+    dpHasta.setDate(maxDate);
     document.getElementById('fSearch').value = '';
     document.getElementById('fOnlyOfficial').checked = false;
     applyFiltersAndRender();
@@ -644,8 +761,8 @@ function getFilters(){
     distribuidor: msDistribuidor ? msDistribuidor.getValues() : null,
     distrito: msDistrito ? msDistrito.getValues() : null,
     evento: msEvento ? msEvento.getValues() : null,
-    desde: drFecha ? drFecha.getRange().desde : null,
-    hasta: drFecha ? drFecha.getRange().hasta : null,
+    desde: dpDesde ? dpDesde.getDate() : null,
+    hasta: dpHasta ? (d => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59))(dpHasta.getDate()) : null,
     search: document.getElementById('fSearch').value.trim().toLowerCase(),
     onlyOfficial: document.getElementById('fOnlyOfficial').checked
   };
@@ -1213,6 +1330,7 @@ function normalizeCenso(records){
     // El Excel no trae "Triciclo" como valor de Canal (viene mezclado en Ambulatorio o vacío),
     // pero operativamente sí es un canal propio — lo separamos usando el Tipo de Activo.
     let canal = (r['Canal']||'').toString().trim() || 'Sin canal';
+    if(canal === '-') canal = 'Sin canal'; // el Excel a veces trae "-" en vez de dejarlo vacío
     if(/TRICICLO/i.test(tipoActivo)) canal = 'Triciclo';
     return {
       activoFijo: r['Activo fijo'],
@@ -1442,14 +1560,14 @@ function renderCensoAvance(containerId, rows, field, topN){
 
 function renderCensoAntiguedad(rows){
   const now = new Date();
-  const buckets = {'Menos de 30 días':0, 'Entre 30 y 60 días':0, 'Entre 60 y 90 días':0, 'Mayor a 90 días':0, 'Sin fecha de ubicación':0};
+  const buckets = {'De 1 a 30 días':0, 'De 31 a 60 días':0, 'De 61 a 90 días':0, 'Más de 90 días':0, 'Sin fecha de ubicación':0};
   rows.filter(r=>!r.censado).forEach(r=>{
     if(!r.fechaUbicacion){ buckets['Sin fecha de ubicación']++; return; }
     const dias = Math.floor((now - r.fechaUbicacion)/86400000);
-    if(dias < 30) buckets['Menos de 30 días']++;
-    else if(dias < 60) buckets['Entre 30 y 60 días']++;
-    else if(dias < 90) buckets['Entre 60 y 90 días']++;
-    else buckets['Mayor a 90 días']++;
+    if(dias <= 30) buckets['De 1 a 30 días']++;
+    else if(dias <= 60) buckets['De 31 a 60 días']++;
+    else if(dias <= 90) buckets['De 61 a 90 días']++;
+    else buckets['Más de 90 días']++;
   });
   const total = Object.values(buckets).reduce((a,b)=>a+b,0);
   let html = '<thead><tr><th>Días desde ubicación</th><th>N° Placas</th></tr></thead><tbody>';
@@ -1589,8 +1707,14 @@ function showApp(session){
   loginScreen.style.display = 'none';
   appWrap.style.display = 'block';
   userEmailLabel.textContent = session?.user?.email || '';
+  // Ambos archivos se cargan juntos, en paralelo, apenas entras — así ves de
+  // inmediato la fecha de los dos documentos sin importar en qué pestaña estés,
+  // y cambiar de pestaña ya no tiene que esperar a que recién ahí se descargue.
   if(RAW_CENSO.length === 0){
     fetchAndLoadCenso();
+  }
+  if(RAW.length === 0){
+    fetchAndLoadData(false);
   }
 }
 
