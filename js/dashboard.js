@@ -805,7 +805,7 @@ function applyFiltersAndRender(){
   const episodes = EPISODES.filter(e=>matchesEpisode(e,f));
   const maxDateAll = RAW[RAW.length-1].fecha;
 
-  document.getElementById('lastUpdateText').textContent = `Última fecha de actualización: ${fmtDateTime(maxDateAll)}`;
+  document.getElementById('lastUpdateDesc').textContent = `Alertas: última del ${fmtDateTime(maxDateAll)}`;
 
   renderKPIs(rows, episodes);
   renderTop10Activos24h(rows, maxDateAll);
@@ -1297,6 +1297,11 @@ async function fetchAndLoadCenso(){
     if(RAW_CENSO.length === 0){
       throw new Error('El archivo no tiene filas reconocibles. Revisa que la hoja "Hoja1" tenga los encabezados esperados (Placa Física, Vendedor, Canal, STATUS, X, Y...).');
     }
+    const fechasUbicacion = RAW_CENSO.map(r=>r.fechaUbicacion).filter(Boolean);
+    const maxFechaCenso = fechasUbicacion.length ? new Date(Math.max(...fechasUbicacion.map(d=>d.getTime()))) : null;
+    document.getElementById('lastUpdateCenso').textContent = maxFechaCenso
+      ? `Censo: última del ${fmtDateTime(maxFechaCenso)}`
+      : 'Censo: fecha no disponible';
     initCensoFiltersUI();
     applyCensoFiltersAndRender();
     setSourceStatus('Censo', 'ok', fechaArchivoCenso ? `archivo del ${fmtDateCorta(fechaArchivoCenso)}` : `cargado · ${RAW_CENSO.length.toLocaleString('es-PE')} activos`);
