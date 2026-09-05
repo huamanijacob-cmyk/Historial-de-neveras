@@ -1693,7 +1693,12 @@ if(typeof window.supabase === 'undefined'){
   console.error('window.supabase no está definido — el script de supabase-js no cargó.');
 }
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Se usa sessionStorage (no localStorage) para que la sesión SOLO viva mientras
+// la pestaña/ventana del navegador esté abierta. Al cerrar el navegador, esa
+// sesión desaparece sola y la próxima vez pedirá login de nuevo.
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+});
 
 const loginScreen = document.getElementById('loginScreen');
 const appWrap = document.getElementById('appWrap');
@@ -1703,10 +1708,34 @@ const loginSubmitBtn = document.getElementById('loginSubmitBtn');
 const logoutBtn = document.getElementById('logoutBtn');
 const userEmailLabel = document.getElementById('userEmailLabel');
 
+// ---------------- Cierre de sesión automático por inactividad ----------------
+const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutos
+let inactivityTimer = null;
+let sessionActive = false;
+let logoutReason = null; // mensaje a mostrar en el login la próxima vez que aparezca
+
+function resetInactivityTimer(){
+  if(!sessionActive) return;
+  if(inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer = setTimeout(async ()=>{
+    logoutReason = 'Tu sesión se cerró por inactividad (15 minutos sin uso).';
+    await supabaseClient.auth.signOut();
+  }, INACTIVITY_LIMIT_MS);
+}
+function stopInactivityTimer(){
+  if(inactivityTimer) clearTimeout(inactivityTimer);
+  inactivityTimer = null;
+}
+['mousemove','mousedown','keydown','scroll','touchstart','click'].forEach(evt=>{
+  document.addEventListener(evt, resetInactivityTimer, { passive:true });
+});
+
 function showApp(session){
   loginScreen.style.display = 'none';
   appWrap.style.display = 'block';
   userEmailLabel.textContent = session?.user?.email || '';
+  sessionActive = true;
+  resetInactivityTimer();
   // Ambos archivos se cargan juntos, en paralelo, apenas entras — así ves de
   // inmediato la fecha de los dos documentos sin importar en qué pestaña estés,
   // y cambiar de pestaña ya no tiene que esperar a que recién ahí se descargue.
@@ -1721,8 +1750,16 @@ function showApp(session){
 function showLogin(){
   appWrap.style.display = 'none';
   loginScreen.style.display = 'flex';
-  loginError.style.display = 'none';
   loginForm.reset();
+  sessionActive = false;
+  stopInactivityTimer();
+  if(logoutReason){
+    loginError.textContent = logoutReason;
+    loginError.style.display = 'block';
+    logoutReason = null;
+  } else {
+    loginError.style.display = 'none';
+  }
 }
 
 supabaseClient.auth.getSession().then(({data:{session}})=>{
