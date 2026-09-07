@@ -803,12 +803,16 @@ function applyFiltersAndRender(){
   const f = getFilters();
   const rows = RAW.filter(r=>matchesRow(r,f));
   const episodes = EPISODES.filter(e=>matchesEpisode(e,f));
-  const maxDateAll = RAW[RAW.length-1].fecha;
+  const maxDateAll = RAW[RAW.length-1].fecha; // fecha real del archivo completo (para el encabezado)
+  // El panel de "últimas 24h" debe anclarse a la fecha más reciente DENTRO del
+  // rango filtrado — si usáramos siempre la fecha global del archivo, un filtro
+  // que termine antes de esa fecha dejaría el panel vacío (justo el bug reportado).
+  const maxDateFiltrado = rows.length ? rows.reduce((m,r)=> r.fecha > m ? r.fecha : m, rows[0].fecha) : maxDateAll;
 
   document.getElementById('lastUpdateDesc').textContent = `Alertas: última del ${fmtDateTime(maxDateAll)}`;
 
   renderKPIs(rows, episodes);
-  renderTop10Activos24h(rows, maxDateAll);
+  renderTop10Activos24h(rows, maxDateFiltrado);
   renderAlertMatrix(rows);
   renderHorarioMatrix(episodes);
   renderDistritoMatrix(episodes);
@@ -869,7 +873,7 @@ function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>
 
 // ---------------- Gráficos de barra (Chart.js) para los Top 10 ----------------
 const chartInstances = {};
-function renderBarChart(containerId, items, maxVal){
+function renderBarChart(containerId, items, maxVal, onBarClick){
   const container = document.getElementById(containerId);
   if(items.length === 0){
     if(chartInstances[containerId]){ chartInstances[containerId].destroy(); delete chartInstances[containerId]; }
@@ -901,11 +905,21 @@ function renderBarChart(containerId, items, maxVal){
         responsive: true,
         maintainAspectRatio: false,
         animation: { duration: 280 },
+        onClick: onBarClick ? (evt, elements) => {
+          if(!elements.length) return;
+          const idx = elements[0].index;
+          const label = chartInstances[containerId].data.labels[idx];
+          onBarClick(label);
+        } : undefined,
+        onHover: onBarClick ? (evt, elements) => {
+          evt.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+        } : undefined,
         plugins: {
           legend: { display: false },
           tooltip: {
             backgroundColor: '#0c2461', titleFont: { family: 'Inter', weight: '600' },
-            bodyFont: { family: 'IBM Plex Mono' }, padding: 10, cornerRadius: 8, displayColors: false
+            bodyFont: { family: 'IBM Plex Mono' }, padding: 10, cornerRadius: 8, displayColors: false,
+            callbacks: onBarClick ? { afterLabel: () => 'Clic para ver el detalle →' } : undefined
           }
         },
         scales: {
@@ -917,6 +931,29 @@ function renderBarChart(containerId, items, maxVal){
   }
 }
 
+// Cambia a la sub-pestaña "Detalle por placa" y busca esa placa directamente.
+function irADetallePlaca(placa){
+  document.querySelector('#module-desconexiones .tabbar .tab-btn[data-tab="placa"]')?.click();
+  const input = document.getElementById('placaSearch');
+  if(input){
+    input.value = placa;
+    input.dispatchEvent(new Event('input'));
+    input.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+}
+
+// Filtra el "Resumen general" por ese código de cliente (no hay una pestaña de
+// detalle por cliente, así que lo más útil es acotar todos los paneles a él).
+function irADetalleCliente(codigoCliente){
+  document.querySelector('#module-desconexiones .tabbar .tab-btn[data-tab="general"]')?.click();
+  const search = document.getElementById('fSearch');
+  if(search){
+    search.value = codigoCliente;
+    applyFiltersAndRender();
+    search.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+}
+
 function renderTop10Activos24h(rows, maxDateAll){
   const from = new Date(maxDateAll.getTime() - 24*3600000);
   const alertRows = rows.filter(r=>ALERT_EVENTS.includes(r.evento) && r.fecha >= from && r.fecha <= maxDateAll);
@@ -924,7 +961,7 @@ function renderTop10Activos24h(rows, maxDateAll){
   alertRows.forEach(r=> counts[r.device] = (counts[r.device]||0)+1);
   const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([label,value])=>({label,value}));
   document.getElementById('badge24h').textContent = `${fmtDateTime(from)} → ${fmtDateTime(maxDateAll)}`;
-  renderBarChart('top10Activos', top, top[0]?.value||0);
+  renderBarChart('top10Activos', top, top[0]?.value||0, irADetallePlaca);
 }
 
 function extractClientCode(cliente){
@@ -982,7 +1019,7 @@ function renderTop10Clientes6h(episodes){
     counts[code] = (counts[code]||0)+1;
   });
   const top = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([label,value])=>({label,value}));
-  renderBarChart('top10Clientes6h', top, top[0]?.value||0);
+  renderBarChart('top10Clientes6h', top, top[0]?.value||0, irADetalleCliente);
 }
 
 function renderAlertMatrix(rows){
@@ -1412,7 +1449,7 @@ function applyCensoFiltersAndRender(){
   const f = getCensoFilters();
   const rows = RAW_CENSO.filter(r=>matchesCenso(r,f));
   renderCensoKPIs(rows);
-  renderCensoAvance('censoAvanceCanal', rows, 'canal', null);
+  renderCensoAvance('censoAvanceCanal', rows, 'canal', null, ['Sin canal']);
   renderCensoAvance('censoAvanceVendedor', rows, 'vendedor', null);
   renderCensoAvance('censoAvanceDistrito', rows, 'distrito', null);
   renderCensoAntiguedad(rows);
@@ -1534,10 +1571,11 @@ function renderCensoKPIs(rows){
   document.getElementById('cKpiPatio').textContent = patio.toLocaleString('es-PE');
 }
 
-function renderCensoAvance(containerId, rows, field, topN){
+function renderCensoAvance(containerId, rows, field, topN, excludeValues){
   const groups = {};
   rows.forEach(r=>{
     const k = r[field];
+    if(excludeValues && excludeValues.includes(k)) return;
     if(!groups[k]) groups[k] = {total:0, censados:0, pendientesRows:[]};
     groups[k].total++;
     if(r.censado) groups[k].censados++; else groups[k].pendientesRows.push(r);
@@ -1576,8 +1614,10 @@ function renderCensoAntiguedad(rows){
   });
   const total = Object.values(buckets).reduce((a,b)=>a+b,0);
   let html = '<thead><tr><th>Días desde ubicación</th><th>N° Placas</th></tr></thead><tbody>';
-  Object.entries(buckets).forEach(([k,v])=>{
-    if(v === 0) return;
+  const ORDEN = ['De 1 a 30 días','De 31 a 60 días','De 61 a 90 días','Más de 90 días','Sin fecha de ubicación'];
+  ORDEN.forEach(k=>{
+    const v = buckets[k];
+    if(k === 'Sin fecha de ubicación' && v === 0) return; // este sí se oculta si no aplica
     html += `<tr><td>${k}</td><td style="font-weight:600;">${v.toLocaleString('es-PE')}</td></tr>`;
   });
   html += `<tr class="total-row"><td>Total pendientes</td><td>${total.toLocaleString('es-PE')}</td></tr></tbody>`;
