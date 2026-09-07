@@ -1563,10 +1563,10 @@ function renderCensoKPIs(rows){
   const patio = rows.filter(r=>r.esPatio).length;
   document.getElementById('cKpiTotal').textContent = total.toLocaleString('es-PE');
   document.getElementById('cKpiTotalSub').textContent = `de ${RAW_CENSO.length.toLocaleString('es-PE')} totales`;
-  document.getElementById('cKpiCensados').textContent = censados.toLocaleString('es-PE');
-  document.getElementById('cKpiPct').textContent = `${fmtPct(pct)} de avance`;
-  document.getElementById('cKpiPendientes').textContent = pendientes.toLocaleString('es-PE');
-  document.getElementById('cKpiPendientesPct').textContent = `${fmtPct(pctPend)} del total`;
+  document.getElementById('cKpiCensados').textContent = fmtPct(pct);
+  document.getElementById('cKpiPct').textContent = `${censados.toLocaleString('es-PE')} activos`;
+  document.getElementById('cKpiPendientes').textContent = fmtPct(pctPend);
+  document.getElementById('cKpiPendientesPct').textContent = `${pendientes.toLocaleString('es-PE')} activos`;
   document.getElementById('cKpiViejos').textContent = viejos.toLocaleString('es-PE');
   document.getElementById('cKpiPatio').textContent = patio.toLocaleString('es-PE');
 }
