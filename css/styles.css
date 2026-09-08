@@ -396,3 +396,8 @@
   .brand-mark svg{ width:18px; height:18px; }
   .login-box{ padding:22px 16px; }
 }
+
+/* Corrige el desborde horizontal en paneles dentro de grid2 (ej. tablas de
+   matriz de calor): sin esto, el panel se estira al ancho natural de la
+   tabla interna en vez de respetar el ancho de su columna del grid. */
+.grid2 > .panel{ min-width:0; }
