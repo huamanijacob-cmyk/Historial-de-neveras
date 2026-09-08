@@ -127,7 +127,7 @@
   .bar-fill{height:100%; border-radius:5px; background:linear-gradient(90deg,var(--navy),#3959a8);}
   .bar-val{min-width:52px; font-size:12px; text-align:right; font-family:'IBM Plex Mono',monospace; color:var(--navy-dark); font-weight:600; flex-shrink:0;}
   footer{margin-top:26px; text-align:center; color:var(--muted2); font-size:11.5px;}
-  @media(max-width:980px){ .grid2{grid-template-columns:1fr;} .kpi-row{grid-template-columns:repeat(2,1fr);} #defsPanel > div{gap:10px !important;} }
+  /* Reglas responsive completas al final del archivo */
 
   .tabbar{display:flex; gap:6px; margin-bottom:16px; border-bottom:1.5px solid var(--border);}
   .tab-btn{
@@ -190,8 +190,6 @@
 .source-dot.ok{ background:#2e9e4f; }
 .source-dot.error{ background:var(--red); }
 .source-dot.loading{ background:var(--gold); animation:pulse 2s infinite; }
-.source-file{ color:var(--text); font-weight:600; }
-.source-arrow{ color:var(--muted2); }
 .source-module{ color:var(--navy); }
 .source-status{ color:var(--muted2); }
 
@@ -249,59 +247,6 @@
   display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; vertical-align:middle;
 }
 
-/* ---- selector de rango de fechas personalizado ---- */
-.drange{ position:relative; min-width:200px; }
-.drange-control{
-  background:var(--panel2); border:1px solid var(--border); color:var(--text);
-  border-radius:7px; padding:7px 10px; font-size:12.5px; font-family:'IBM Plex Mono',monospace;
-  width:100%; display:flex; align-items:center; justify-content:space-between; gap:6px; cursor:pointer;
-}
-.drange-control:hover{ border-color:var(--navy); }
-.drange-control.has-value{ border-color:var(--navy); background:var(--navy-soft); color:var(--navy-dark); font-weight:600; }
-.drange-summary{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.drange-icon{ color:var(--muted2); font-size:10px; flex-shrink:0; transition:transform .15s ease; }
-.drange.open .drange-icon{ transform:rotate(180deg); }
-.drange-panel{
-  display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:40;
-  background:var(--panel); border:1px solid var(--border); border-radius:12px; box-shadow:0 8px 24px rgba(16,24,48,.16);
-  padding:14px; width:290px;
-  opacity:0; transform:translateY(-4px); transition:opacity .12s ease, transform .12s ease;
-}
-.drange.open .drange-panel{ display:block; opacity:1; transform:translateY(0); }
-.drange-presets{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
-.drange-preset{
-  font-size:11px; font-family:'Inter',sans-serif; color:var(--navy); background:var(--navy-soft);
-  border:1px solid #c9d3ef; border-radius:20px; padding:4px 10px; cursor:pointer; white-space:nowrap;
-}
-.drange-preset:hover{ background:var(--navy); color:#fff; }
-.drange-month-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
-.drange-month-label{ font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:13.5px; color:var(--navy-dark); }
-.drange-nav-btn{
-  background:var(--panel2); border:1px solid var(--border); border-radius:6px; width:26px; height:26px;
-  display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--navy); font-size:12px;
-}
-.drange-nav-btn:hover{ border-color:var(--navy); }
-.drange-nav-btn.disabled{ opacity:.3; pointer-events:none; }
-.drange-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; color:var(--muted2); font-weight:600; margin-bottom:4px; }
-.drange-days{ display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
-.drange-day{
-  aspect-ratio:1; display:flex; align-items:center; justify-content:center; font-size:12px; font-family:'IBM Plex Mono',monospace;
-  border-radius:6px; cursor:pointer; color:var(--text);
-}
-.drange-day:hover:not(.disabled){ background:var(--navy-soft); }
-.drange-day.disabled{ color:var(--muted2); opacity:.35; cursor:default; }
-.drange-day.empty{ visibility:hidden; }
-.drange-day.in-range{ background:var(--navy-soft); border-radius:0; }
-.drange-day.range-start{ background:var(--navy); color:#fff; border-radius:6px 0 0 6px; }
-.drange-day.range-end{ background:var(--navy); color:#fff; border-radius:0 6px 6px 0; }
-.drange-day.range-start.range-end{ border-radius:6px; }
-.drange-footer{ display:flex; justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
-.drange-hint{ font-size:11px; color:var(--muted2); }
-.drange-apply{
-  background:var(--navy); color:#fff; border:none; border-radius:7px; padding:6px 14px;
-  font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;
-}
-.drange-apply:hover{ background:var(--navy-dark); }
 
 /* ---- barra de filtros activos (chips) ---- */
 .active-filters-bar{ display:flex; gap:8px; flex-wrap:wrap; margin:-8px 0 16px; min-height:0; }
@@ -368,3 +313,86 @@
 .filters-row2 .toggle-wrap input{ accent-color:var(--navy); width:15px; height:15px; }
 
 .sub-sep{ color:var(--muted2); margin:0 4px; }
+
+/* =====================================================================
+   RESPONSIVE — se adapta a laptop chica / tablet / celular
+   ===================================================================== */
+
+/* ---- Tablet grande / laptop chica (≤1180px) ---- */
+@media(max-width:1180px){
+  .kpi-row{ grid-template-columns:repeat(3,1fr) !important; }
+  .kpi-row-5{ grid-template-columns:repeat(3,1fr) !important; }
+}
+
+/* ---- Tablet (≤900px) ---- */
+@media(max-width:900px){
+  .grid2{ grid-template-columns:1fr; }
+  .kpi-row{ grid-template-columns:repeat(2,1fr) !important; }
+  .kpi-row-5{ grid-template-columns:repeat(2,1fr) !important; }
+  #defsPanel > div{ gap:10px !important; }
+  #censoMap{ height:420px !important; }
+  .module-tabbar{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .module-tabbar .tab-btn{ white-space:nowrap; }
+}
+
+/* ---- Celular (≤640px) ---- */
+@media(max-width:640px){
+  body{ padding:14px 12px 40px; }
+
+  /* encabezado: todo apilado, botones ocupan el ancho disponible */
+  .topbar{ flex-direction:column; align-items:stretch; gap:12px; }
+  .brand h1{ font-size:16.5px; }
+  .brand .sub{ flex-wrap:wrap; }
+  .file-controls{ flex-wrap:wrap; width:100%; }
+  .file-controls .btn{ flex:1 1 auto; justify-content:center; }
+  .file-meta, #userEmailLabel{ width:100%; text-align:center; }
+
+  /* chips de fuentes de datos, más compactos */
+  .sources-bar{ gap:6px; }
+  .source-chip{ font-size:10.5px; padding:5px 9px; flex:1 1 auto; justify-content:center; }
+
+  /* filtros: cada control ocupa todo el ancho, uno debajo de otro */
+  .filters{ padding:12px; gap:10px; }
+  .filter-group{ width:100% !important; min-width:0 !important; }
+  .filters .spacer{ display:none; }
+  .msel, .dsingle{ width:100%; min-width:0; }
+  .msel-control, .dsingle-control{ width:100%; }
+  .msel-panel, .dsingle-panel{ width:100%; max-width:none; }
+  select, input[type=text]{ width:100%; }
+  .filters-row2{ margin-top:0; }
+
+  /* KPIs: una sola columna, valores un poco más chicos */
+  .kpi-row, .kpi-row-5{ grid-template-columns:1fr !important; }
+  .kpi .value{ font-size:23px; }
+
+  /* pestañas: permiten scroll horizontal en vez de romper el layout */
+  .tabbar, .module-tabbar{ overflow-x:auto; -webkit-overflow-scrolling:touch; flex-wrap:nowrap; }
+  .tab-btn{ white-space:nowrap; font-size:12.5px; padding:8px 12px; }
+  .module-tabbar .tab-btn{ font-size:13px; padding:9px 14px; }
+
+  /* paneles y tablas más compactos */
+  .panel{ padding:14px 14px 16px; }
+  table{ font-size:11.5px; }
+  th, td{ padding:6px 5px; }
+  .bar-label{ width:82px; font-size:11px; }
+  .bar-val{ min-width:44px; font-size:11px; }
+
+  /* mapa y listas largas, más bajos para no comerse toda la pantalla */
+  #censoMap{ height:320px !important; }
+  #censoAvanceVendedor, #censoAvanceDistrito{ max-height:220px !important; }
+  #tblCensoPendientes{ font-size:11px; }
+
+  /* login centrado, con márgenes laterales */
+  .login-box{ padding:26px 22px; margin:0 16px; max-width:none; }
+
+  /* filtros activos (chips) más compactos */
+  .filter-chip{ font-size:10.5px; padding:4px 5px 4px 10px; }
+}
+
+/* ---- Celular chico (≤400px) ---- */
+@media(max-width:400px){
+  .kpi .value{ font-size:20px; }
+  .brand-mark{ width:36px; height:36px; }
+  .brand-mark svg{ width:18px; height:18px; }
+  .login-box{ padding:22px 16px; }
+}
