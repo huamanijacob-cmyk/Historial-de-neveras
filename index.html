@@ -185,12 +185,10 @@
   <div class="grid2">
     <div class="panel">
       <div class="panel-head"><h3>Top 10 activos con más alertas en 24h</h3><span class="badge" id="badge24h"></span></div>
-      <div class="panel-sub">Desde la última fecha registrada en los datos filtrados</div>
       <div id="top10Activos"></div>
     </div>
     <div class="panel">
       <div class="panel-head"><h3>Desconexiones por horario y duración</h3></div>
-      <div class="panel-sub">Incidentes (Fuera de zona / Intermitencia / Desconexión) agrupados por franja horaria de inicio</div>
       <div style="overflow-x:auto;"><table id="tblHorarioMatrix"></table></div>
     </div>
   </div>
@@ -198,19 +196,16 @@
   <div class="grid2">
     <div class="panel">
       <div class="panel-head"><h3>Alertas diarias por activo, según distrito</h3></div>
-      <div class="panel-sub">N.º de días-activo según cuántas alertas tuvieron ese día</div>
       <div style="overflow-x:auto;"><table id="tblAlertMatrix"></table></div>
     </div>
     <div class="panel">
       <div class="panel-head"><h3>Desconexiones por distrito y duración</h3></div>
-      <div class="panel-sub">Casos por distrito, según cuánto duró la desconexión</div>
       <div style="overflow-x:auto;"><table id="tblDistritoMatrix"></table></div>
     </div>
   </div>
 
   <div class="panel" style="margin-bottom:16px;">
     <div class="panel-head"><h3>Top 10 clientes con más desconexiones mayores a 6h</h3></div>
-    <div class="panel-sub">Casos críticos por código de cliente en el rango filtrado</div>
     <div id="top10Clientes6h"></div>
   </div>
 
@@ -261,7 +256,6 @@
 
       <div class="panel" id="clientesPanelWrap" style="margin-bottom:16px;">
         <div class="panel-head"><h3>Clientes asociados a esta placa</h3></div>
-        <div class="panel-sub">Reconstruido por orden cronológico de las filas del archivo — si el activo cambió de cliente, aparece aquí</div>
         <div style="overflow-x:auto;"><table id="tblPlacaClientes"></table></div>
       </div>
 
@@ -271,7 +265,6 @@
           <span class="badge" id="pkBadge"></span>
         </div>
         <div class="panel-sub" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-          <span>Ordenado del corte más reciente al más antiguo</span>
           <div id="placaClienteFilterWrap" style="display:none; align-items:center; gap:7px;">
             <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; font-weight:600; margin:0;">Filtrar por cliente</label>
             <select id="placaClienteSelect" style="min-width:220px;"></select>
@@ -353,12 +346,10 @@
     <div class="grid2">
       <div class="panel">
         <div class="panel-head"><h3>% Avance de censo por Canal</h3></div>
-        <div class="panel-sub">Porcentaje de activos censados sobre el total, por canal de venta</div>
         <div id="censoAvanceCanal"></div>
       </div>
       <div class="panel">
         <div class="panel-head"><h3>Pendientes de censo por antigüedad</h3></div>
-        <div class="panel-sub">Días transcurridos desde la fecha de ubicación del activo, sin censar</div>
         <div style="overflow-x:auto;"><table id="tblCensoAntiguedad"></table></div>
       </div>
     </div>
@@ -366,12 +357,10 @@
     <div class="grid2">
       <div class="panel">
         <div class="panel-head"><h3>% Avance de censo por Vendedor</h3></div>
-        <div class="panel-sub">Todos los vendedores, ordenados por % de avance</div>
         <div id="censoAvanceVendedor" style="max-height:340px; overflow-y:auto; padding-right:4px;"></div>
       </div>
       <div class="panel">
         <div class="panel-head"><h3>% Avance de censo por Distrito</h3></div>
-        <div class="panel-sub">Todos los distritos, ordenados por % de avance</div>
         <div id="censoAvanceDistrito" style="max-height:340px; overflow-y:auto; padding-right:4px;"></div>
       </div>
     </div>
@@ -381,7 +370,6 @@
         <h3>Activos pendientes de censo</h3>
         <span class="badge" id="censoPendientesBadge"></span>
       </div>
-      <div class="panel-sub">Clic en cualquier barra de canal, vendedor o distrito de arriba para filtrar aquí solo lo suyo — o usa el buscador de arriba para encontrar una placa puntual.</div>
       <div style="overflow-x:auto; max-height:420px; overflow-y:auto;"><table id="tblCensoPendientes"></table></div>
     </div>
 
@@ -390,7 +378,7 @@
         <h3>Mapa de activos</h3>
         <span class="badge" id="censoMapBadge"></span>
       </div>
-      <div class="panel-sub">🟢 Censado &nbsp; 🔴 Pendiente de censo &nbsp;·&nbsp; se actualiza con los filtros de arriba. Puntos agrupados por zoom — acércate para ver activos individuales.</div>
+      <div class="panel-sub panel-legend">🟢 Censado &nbsp; 🔴 Pendiente de censo</div>
       <div id="censoMap" style="height:520px; border-radius:10px; overflow:hidden; border:1px solid var(--border);"></div>
     </div>
 
