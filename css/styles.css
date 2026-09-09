@@ -401,3 +401,9 @@
    matriz de calor): sin esto, el panel se estira al ancho natural de la
    tabla interna en vez de respetar el ancho de su columna del grid. */
 .grid2 > .panel{ min-width:0; }
+
+/* ---- botón de exportar (dentro de un panel-head) ---- */
+.btn-export{
+  font-size:11px; padding:5px 11px; gap:5px; background:#e9f5ec; border-color:#bfe3c9; color:#1a7a3c;
+}
+.btn-export:hover{ background:#1a7a3c; border-color:#1a7a3c; color:#fff; }
