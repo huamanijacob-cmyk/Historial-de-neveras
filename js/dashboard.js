@@ -1004,6 +1004,7 @@ function initPlacaUI(){
 }
 
 let currentPlacaDevice = null;
+let currentPlacaEpisodios = []; // el historial EXACTO que se ve en pantalla ahora mismo (para exportar)
 
 function clientNamePart(clienteText, code){
   return clienteText.trim().slice(code.length).replace(/^\S*\s*/,'').trim() || clienteText.trim().replace(/^\S+\s*/,'').trim();
@@ -1097,10 +1098,12 @@ function renderPlacaHistorial(device, clienteFilter, groups){
     eps = eps.filter(e => ranges.some(p => e.start >= p.desde && e.start <= p.hasta));
   }
   eps = eps.sort((a,b)=>b.start-a.start);
+  currentPlacaEpisodios = eps; // se usa al exportar, para que descargue exactamente lo que se ve
 
   document.getElementById('pkTotal').textContent = eps.length.toLocaleString('es-PE');
   const totalHoras = eps.reduce((s,e)=>s+e.hours,0);
   document.getElementById('pkHoras').textContent = totalHoras.toFixed(1)+'h';
+  document.getElementById('pkPromedio').textContent = eps.length ? fmtDuracion(totalHoras/eps.length) : '–';
   document.getElementById('pkCriticos').textContent = eps.filter(e=>e.hours>=6).length.toLocaleString('es-PE');
   if(eps.length){
     const worst = eps.reduce((a,b)=> b.hours>a.hours? b:a, eps[0]);
@@ -1227,6 +1230,7 @@ function normalizeCenso(records){
       canal,
       canalVenta: (r['Canal Venta']||'').toString().trim(),
       distrito: (r['Distrito']||'').toString().trim() || 'Sin distrito',
+      diaVisita: (r['Dia Visita']||'').toString().trim() || 'Sin día asignado',
       status,
       censado,
       fechaUbicacion,
@@ -1292,6 +1296,7 @@ function applyCensoFiltersAndRender(){
   renderCensoAvance('censoAvanceCanal', rows, 'canal', null, ['Sin canal']);
   renderCensoAvance('censoAvanceVendedor', rows, 'vendedor', null);
   renderCensoAvance('censoAvanceDistrito', rows, 'distrito', null);
+  renderCensoAvance('censoAvanceDiaVisita', rows, 'diaVisita', null);
   renderCensoAntiguedad(rows);
   renderCensoMap(rows);
   renderCensoPendientesTable(rows);
@@ -1693,4 +1698,75 @@ logoutBtn.addEventListener('click', async () => {
   } catch(err){
     console.error('Error al cerrar sesión:', err);
   }
+});
+
+// =====================================================================
+// EXPORTAR A EXCEL (usa la librería XLSX ya cargada, sin depender de servidor)
+// =====================================================================
+function autoFitCols(data){
+  if(!data.length) return [];
+  return Object.keys(data[0]).map(key=>{
+    const maxLen = Math.max(key.length, ...data.map(row => String(row[key] ?? '').length));
+    return { wch: Math.min(Math.max(maxLen + 2, 10), 45) };
+  });
+}
+
+function descargarExcel(data, nombreHoja, nombreArchivo){
+  if(!data.length){
+    alert('No hay datos para exportar con los filtros actuales.');
+    return;
+  }
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = autoFitCols(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
+  XLSX.writeFile(wb, nombreArchivo);
+}
+
+// Exporta TODOS los activos pendientes que coincidan con los filtros actuales
+// (no solo los 300 que se pintan en pantalla por rendimiento).
+document.getElementById('exportPendientesBtn').addEventListener('click', ()=>{
+  const f = getCensoFilters();
+  const now = new Date();
+  const pend = RAW_CENSO
+    .filter(r=>matchesCenso(r,f))
+    .filter(r=>!r.censado)
+    .sort((a,b)=>{
+      const da = a.fechaUbicacion ? a.fechaUbicacion.getTime() : 0;
+      const db = b.fechaUbicacion ? b.fechaUbicacion.getTime() : 0;
+      return da - db;
+    });
+  const data = pend.map(r=>({
+    'Placa': r.placa,
+    'Cliente': r.cliente,
+    'Tipo de Activo': r.tipoActivo,
+    'Canal': r.canal,
+    'Vendedor': r.vendedor,
+    'Distrito': r.distrito,
+    'Día de Visita': r.diaVisita,
+    'Status': r.status,
+    'Fecha de Ubicación': r.fechaUbicacion ? fmtDate(r.fechaUbicacion) : 'Sin fecha',
+    'Días Pendiente': r.fechaUbicacion ? Math.floor((now - r.fechaUbicacion)/86400000) : ''
+  }));
+  descargarExcel(data, 'Pendientes de Censo', `Pendientes_Censo_SAGADIS_${toDateInputVal(now)}.xlsx`);
+});
+
+// Exporta exactamente el historial de la placa que se está viendo en pantalla
+// (respeta el filtro por cliente si hay uno activo).
+document.getElementById('exportPlacaBtn').addEventListener('click', ()=>{
+  if(!currentPlacaDevice || currentPlacaEpisodios.length === 0){
+    alert('Primero busca una placa con historial para poder exportarlo.');
+    return;
+  }
+  const data = currentPlacaEpisodios.map(e=>({
+    'Fecha': fmtDate(e.start),
+    'Hora Inicio': pad(e.start.getHours())+':'+pad(e.start.getMinutes()),
+    'Hora Fin': e.end ? pad(e.end.getHours())+':'+pad(e.end.getMinutes()) : '—',
+    'Duración': fmtDuracion(e.hours),
+    'Cliente': e.cliente,
+    'Se Originó Por': e.startEvento || '–',
+    'Distrito': e.locacion,
+    'Estado': e.ongoing ? 'En curso' : 'Cerrado'
+  }));
+  descargarExcel(data, `Historial ${currentPlacaDevice}`, `Historial_${currentPlacaDevice}_${toDateInputVal(new Date())}.xlsx`);
 });
