@@ -226,7 +226,7 @@
     </div>
 
     <div id="placaContent" style="display:none;">
-      <div class="kpi-row kpi-row-5">
+      <div class="kpi-row">
         <div class="kpi" style="--kpi-accent:var(--navy)">
           <div class="label">Placa</div>
           <div class="value mono" id="pkPlaca" style="font-size:19px;">–</div>
@@ -241,6 +241,11 @@
           <div class="label">Horas totales sin conexión</div>
           <div class="value" id="pkHoras">–</div>
           <div class="sub">suma de todos los cortes</div>
+        </div>
+        <div class="kpi" style="--kpi-accent:var(--amber)">
+          <div class="label">Promedio por corte</div>
+          <div class="value" id="pkPromedio">–</div>
+          <div class="sub">duración promedio</div>
         </div>
         <div class="kpi" style="--kpi-accent:var(--red)">
           <div class="label">Corte más largo</div>
@@ -262,7 +267,10 @@
       <div class="panel">
         <div class="panel-head">
           <h3>Historial de desconexiones</h3>
-          <span class="badge" id="pkBadge"></span>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="badge" id="pkBadge"></span>
+            <button class="btn btn-export" id="exportPlacaBtn" title="Descargar este historial en Excel">⬇ Excel</button>
+          </div>
         </div>
         <div class="panel-sub" style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
           <div id="placaClienteFilterWrap" style="display:none; align-items:center; gap:7px;">
@@ -365,10 +373,18 @@
       </div>
     </div>
 
+    <div class="panel" style="margin-bottom:16px;">
+      <div class="panel-head"><h3>% Avance de censo por Día de Visita</h3></div>
+      <div id="censoAvanceDiaVisita"></div>
+    </div>
+
     <div class="panel" style="margin-bottom:16px;" id="censoPendientesPanel">
       <div class="panel-head">
         <h3>Activos pendientes de censo</h3>
-        <span class="badge" id="censoPendientesBadge"></span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span class="badge" id="censoPendientesBadge"></span>
+          <button class="btn btn-export" id="exportPendientesBtn" title="Descargar la lista completa de pendientes en Excel">⬇ Excel</button>
+        </div>
       </div>
       <div style="overflow-x:auto; max-height:420px; overflow-y:auto;"><table id="tblCensoPendientes"></table></div>
     </div>
