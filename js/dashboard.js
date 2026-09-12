@@ -1239,17 +1239,19 @@ function normalizeCenso(records){
   }).filter(r=>r.placa);
 }
 
-let msVendedor, msCanal, msStatus, msDistritoCenso;
+let msVendedor, msCanal, msStatus, msDistritoCenso, msDiaVisita;
 
 function initCensoFiltersUI(){
   if(!msVendedor) msVendedor = createMultiSelect('cFVendedor', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
   if(!msCanal) msCanal = createMultiSelect('cFCanal', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
   if(!msStatus) msStatus = createMultiSelect('cFStatus', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
   if(!msDistritoCenso) msDistritoCenso = createMultiSelect('cFDistrito', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
+  if(!msDiaVisita) msDiaVisita = createMultiSelect('cFDiaVisita', {placeholder:'Todos', onChange: applyCensoFiltersAndRender});
   msVendedor.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.vendedor)));
   msCanal.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.canal)));
   msStatus.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.status)));
   msDistritoCenso.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.distrito)));
+  msDiaVisita.setOptions(uniqueSorted(RAW_CENSO.map(r=>r.diaVisita)));
 
   ['cFSearch','cFOnlyPatio'].forEach(id=>{
     document.getElementById(id).addEventListener('input', applyCensoFiltersAndRender);
@@ -1259,6 +1261,7 @@ function initCensoFiltersUI(){
     msCanal.clear();
     msStatus.clear();
     msDistritoCenso.clear();
+    msDiaVisita.clear();
     document.getElementById('cFSearch').value = '';
     document.getElementById('cFOnlyPatio').checked = false;
     applyCensoFiltersAndRender();
@@ -1271,6 +1274,7 @@ function getCensoFilters(){
     canal: msCanal ? msCanal.getValues() : null,
     status: msStatus ? msStatus.getValues() : null,
     distrito: msDistritoCenso ? msDistritoCenso.getValues() : null,
+    diaVisita: msDiaVisita ? msDiaVisita.getValues() : null,
     search: document.getElementById('cFSearch').value.trim().toLowerCase(),
     onlyPatio: document.getElementById('cFOnlyPatio').checked
   };
@@ -1281,6 +1285,7 @@ function matchesCenso(r, f){
   if(f.canal !== null && !f.canal.includes(r.canal)) return false;
   if(f.status !== null && !f.status.includes(r.status)) return false;
   if(f.distrito !== null && !f.distrito.includes(r.distrito)) return false;
+  if(f.diaVisita !== null && !f.diaVisita.includes(r.diaVisita)) return false;
   if(f.onlyPatio && !r.esPatio) return false;
   if(f.search){
     const s = f.search;
@@ -1344,14 +1349,14 @@ function renderCensoPendientesTable(rows){
 }
 
 // ---------------- Filtros activos (chips visibles y removibles) ----------------
-const CENSO_FILTER_LABELS = { vendedor:'Vendedor', canal:'Canal', status:'Status', distrito:'Distrito' };
-const CENSO_FILTER_MSEL = () => ({ vendedor: msVendedor, canal: msCanal, status: msStatus, distrito: msDistritoCenso });
+const CENSO_FILTER_LABELS = { vendedor:'Vendedor', canal:'Canal', status:'Status', distrito:'Distrito', diaVisita:'Día de Visita' };
+const CENSO_FILTER_MSEL = () => ({ vendedor: msVendedor, canal: msCanal, status: msStatus, distrito: msDistritoCenso, diaVisita: msDiaVisita });
 
 function renderCensoActiveFilters(f){
   const wrap = document.getElementById('censoActiveFilters');
   const chips = [];
   const msels = CENSO_FILTER_MSEL();
-  ['vendedor','canal','status','distrito'].forEach(field=>{
+  ['vendedor','canal','status','distrito','diaVisita'].forEach(field=>{
     const vals = f[field];
     if(vals === null) return; // null = "Todos", no se muestra chip
     if(vals.length === 0){
