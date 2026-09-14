@@ -1301,7 +1301,7 @@ function applyCensoFiltersAndRender(){
   renderCensoAvance('censoAvanceCanal', rows, 'canal', null, ['Sin canal']);
   renderCensoAvance('censoAvanceVendedor', rows, 'vendedor', null);
   renderCensoAvance('censoAvanceDistrito', rows, 'distrito', null);
-  renderCensoAvance('censoAvanceDiaVisita', rows, 'diaVisita', null);
+  renderCensoAvance('censoAvanceDiaVisita', rows, 'diaVisita', null, ['Sin día asignado']);
   renderCensoAntiguedad(rows);
   renderCensoMap(rows);
   renderCensoPendientesTable(rows);
