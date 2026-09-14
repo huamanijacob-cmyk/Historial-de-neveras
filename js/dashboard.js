@@ -711,6 +711,13 @@ function mix(c1,c2,p){
 }
 function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
 
+// Degradado de 3 tonos (navy -> dorado -> rojo) para las barras de "más alertas" /
+// "más críticos": más rico visualmente que un simple verde-a-rojo, y sigue
+// leyéndose de forma intuitiva (más intenso el color = más grave).
+function mix3(p){
+  return p < 0.5 ? mix('#3b5bdb', '#e0a80c', p/0.5) : mix('#e0a80c', '#c0392b', (p-0.5)/0.5);
+}
+
 // ---------------- Gráficos de barra (Chart.js) para los Top 10 ----------------
 const chartInstances = {};
 function renderBarChart(containerId, items, maxVal, onBarClick){
@@ -728,7 +735,7 @@ function renderBarChart(containerId, items, maxVal, onBarClick){
   const canvas = container.querySelector('canvas');
   const labels = items.map(i=>i.label);
   const data = items.map(i=>i.value);
-  const colors = items.map(i=> maxVal ? mix('#2e9e4f','#c0392b', Math.min(i.value/maxVal,1)) : '#0c2461');
+  const colors = items.map(i=> maxVal ? mix3(Math.min(i.value/maxVal,1)) : '#0c2461');
 
   if(chartInstances[containerId]){
     const ch = chartInstances[containerId];
@@ -1298,7 +1305,7 @@ function applyCensoFiltersAndRender(){
   const f = getCensoFilters();
   const rows = RAW_CENSO.filter(r=>matchesCenso(r,f));
   renderCensoKPIs(rows);
-  renderCensoAvance('censoAvanceCanal', rows, 'canal', null, ['Sin canal']);
+  renderCanalGauges('censoAvanceCanal', rows, ['Sin canal']);
   renderCensoAvance('censoAvanceVendedor', rows, 'vendedor', null);
   renderCensoAvance('censoAvanceDistrito', rows, 'distrito', null);
   renderCensoAvance('censoAvanceDiaVisita', rows, 'diaVisita', null, ['Sin día asignado']);
@@ -1421,6 +1428,77 @@ function renderCensoKPIs(rows){
   document.getElementById('cKpiPatio').textContent = patio.toLocaleString('es-PE');
 }
 
+// Colores propios por canal (no la escala de severidad verde/rojo) — para que
+// este panel se sienta distinto y con más variedad visual que el resto.
+const CANAL_COLORS = { 'Horizontal':'#3b5bdb', 'Ambulatorio':'#e0a80c', 'Horeca':'#0f9b8e', 'Triciclo':'#e2574c' };
+const CANAL_COLOR_FALLBACK = ['#6c5ce7','#00b894','#fd79a8','#0984e3','#e17055'];
+let canalGaugeCharts = {};
+
+function renderCanalGauges(containerId, rows, excludeValues){
+  const groups = {};
+  rows.forEach(r=>{
+    const k = r.canal;
+    if(excludeValues && excludeValues.includes(k)) return;
+    if(!groups[k]) groups[k] = {total:0, censados:0};
+    groups[k].total++;
+    if(r.censado) groups[k].censados++;
+  });
+  const items = Object.entries(groups)
+    .map(([label,g])=>({ label, pct: g.total ? (g.censados/g.total*100) : 0, total:g.total, censados:g.censados }))
+    .sort((a,b)=> b.total - a.total);
+
+  const container = document.getElementById(containerId);
+  if(items.length === 0){
+    container.innerHTML = '<div style="color:var(--muted2); font-size:12.5px;">Sin datos en el rango filtrado.</div>';
+    return;
+  }
+
+  // Solo reconstruye los canvases si cambió el conjunto de canales (evita
+  // destruir/crear gráficos en cada filtro — se siente más fluido).
+  const currentKeys = items.map(i=>i.label).join('|');
+  if(container.dataset.keys !== currentKeys){
+    container.dataset.keys = currentKeys;
+    Object.values(canalGaugeCharts).forEach(ch=>ch.destroy());
+    canalGaugeCharts = {};
+    container.className = 'canal-gauges';
+    container.innerHTML = items.map((it,idx)=>`
+      <div class="canal-gauge">
+        <div class="canal-gauge-canvas-wrap">
+          <canvas id="canalGauge_${idx}"></canvas>
+          <div class="canal-gauge-value" id="canalGaugeVal_${idx}"></div>
+        </div>
+        <div class="canal-gauge-label" id="canalGaugeLabel_${idx}"></div>
+      </div>
+    `).join('');
+  }
+
+  items.forEach((it, idx)=>{
+    const color = CANAL_COLORS[it.label] || CANAL_COLOR_FALLBACK[idx % CANAL_COLOR_FALLBACK.length];
+    const valEl = document.getElementById(`canalGaugeVal_${idx}`);
+    valEl.textContent = fmtPct(it.pct);
+    valEl.style.color = color;
+    document.getElementById(`canalGaugeLabel_${idx}`).innerHTML =
+      `<b>${it.label}</b><br>${it.censados.toLocaleString('es-PE')}/${it.total.toLocaleString('es-PE')} activos`;
+    const canvas = document.getElementById(`canalGauge_${idx}`);
+    if(canalGaugeCharts[idx]){
+      canalGaugeCharts[idx].data.datasets[0].data = [it.pct, 100-it.pct];
+      canalGaugeCharts[idx].data.datasets[0].backgroundColor = [color, '#eef1f6'];
+      canalGaugeCharts[idx].update();
+    } else {
+      canalGaugeCharts[idx] = new Chart(canvas, {
+        type: 'doughnut',
+        data: { datasets: [{ data: [it.pct, 100-it.pct], backgroundColor: [color, '#eef1f6'], borderWidth: 0, borderRadius: 6 }] },
+        options: {
+          circumference: 270, rotation: -135, cutout: '74%',
+          responsive: true, maintainAspectRatio: true,
+          animation: { duration: 500, easing: 'easeOutQuart' },
+          plugins: { legend:{ display:false }, tooltip:{ enabled:false } }
+        }
+      });
+    }
+  });
+}
+
 function renderCensoAvance(containerId, rows, field, topN, excludeValues){
   const groups = {};
   rows.forEach(r=>{
@@ -1440,12 +1518,12 @@ function renderCensoAvance(containerId, rows, field, topN, excludeValues){
     return;
   }
   container.innerHTML = limited.map(it=>{
-    const color = it.pct >= 95 ? '#2e9e4f' : it.pct >= 80 ? 'var(--gold)' : 'var(--red)';
+    const [c1,c2] = it.pct >= 95 ? ['#2e9e4f','#1a7a3c'] : it.pct >= 80 ? ['#e0a80c','#c67c0a'] : ['#e2574c','#c0392b'];
     const tip = `${it.label}: ${it.pendientes.toLocaleString('es-PE')} pendientes de ${it.total.toLocaleString('es-PE')} activos — clic para ver el detalle`;
     return `
     <div class="bar-wrap bar-clickable" data-field="${field}" data-label="${it.label.replace(/"/g,'&quot;')}" title="${tip}">
       <div class="bar-label">${it.label}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${it.pct}%; background:${color};"></div></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${it.pct}%; background:linear-gradient(90deg, ${c1}, ${c2});"></div></div>
       <div class="bar-val">${fmtPct(it.pct)}</div>
     </div>`;
   }).join('');
