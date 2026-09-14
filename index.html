@@ -150,32 +150,32 @@
   </div>
 
   <div class="kpi-row">
-    <div class="kpi" style="--kpi-accent:var(--navy)">
+    <div class="kpi" data-icon="📊" style="--kpi-accent:var(--navy)">
       <div class="label">Registros filtrados</div>
       <div class="value" id="kpiTotal">–</div>
       <div class="sub" id="kpiTotalSub">de – totales</div>
     </div>
-    <div class="kpi" style="--kpi-accent:var(--amber)">
+    <div class="kpi" data-icon="🔔" style="--kpi-accent:var(--amber)">
       <div class="label">Activos con alertas</div>
       <div class="value" id="kpiActivos">–</div>
       <div class="sub">activos únicos</div>
     </div>
-    <div class="kpi" style="--kpi-accent:var(--amber)">
+    <div class="kpi" data-icon="👥" style="--kpi-accent:var(--amber)">
       <div class="label">Clientes afectados</div>
       <div class="value" id="kpiClientes">–</div>
       <div class="sub">clientes únicos</div>
     </div>
-    <div class="kpi" style="--kpi-accent:var(--red)">
+    <div class="kpi" data-icon="🔌" style="--kpi-accent:var(--red)">
       <div class="label">Desconexiones &gt;6h</div>
       <div class="value" id="kpiLargas">–</div>
       <div class="sub">casos críticos</div>
     </div>
-    <div class="kpi" style="--kpi-accent:var(--red)">
+    <div class="kpi" data-icon="🌙" style="--kpi-accent:var(--red)">
       <div class="label">Desc. nocturnas &gt;2h</div>
       <div class="value" id="kpiNocturnas">–</div>
       <div class="sub">9pm–6am</div>
     </div>
-    <div class="kpi" style="--kpi-accent:var(--red)">
+    <div class="kpi" data-icon="🔋" style="--kpi-accent:var(--red)">
       <div class="label">Batería crítica</div>
       <div class="value" id="kpiBateria">–</div>
       <div class="sub">activos &lt;20%</div>
@@ -227,32 +227,32 @@
 
     <div id="placaContent" style="display:none;">
       <div class="kpi-row">
-        <div class="kpi" style="--kpi-accent:var(--navy)">
+        <div class="kpi" data-icon="🚚" style="--kpi-accent:var(--navy)">
           <div class="label">Placa</div>
           <div class="value mono" id="pkPlaca" style="font-size:19px;">–</div>
           <div class="sub" id="pkCliente">–</div>
         </div>
-        <div class="kpi" style="--kpi-accent:var(--amber)">
+        <div class="kpi" data-icon="📋" style="--kpi-accent:var(--amber)">
           <div class="label">Incidentes totales</div>
           <div class="value" id="pkTotal">–</div>
           <div class="sub">en todo el histórico</div>
         </div>
-        <div class="kpi" style="--kpi-accent:var(--amber)">
+        <div class="kpi" data-icon="⏱️" style="--kpi-accent:var(--amber)">
           <div class="label">Horas totales sin conexión</div>
           <div class="value" id="pkHoras">–</div>
           <div class="sub">suma de todos los cortes</div>
         </div>
-        <div class="kpi" style="--kpi-accent:var(--amber)">
+        <div class="kpi" data-icon="📉" style="--kpi-accent:var(--amber)">
           <div class="label">Promedio por corte</div>
           <div class="value" id="pkPromedio">–</div>
           <div class="sub">duración promedio</div>
         </div>
-        <div class="kpi" style="--kpi-accent:var(--red)">
+        <div class="kpi" data-icon="⏰" style="--kpi-accent:var(--red)">
           <div class="label">Corte más largo</div>
           <div class="value" id="pkMax">–</div>
           <div class="sub" id="pkMaxDate">–</div>
         </div>
-        <div class="kpi" style="--kpi-accent:var(--red)">
+        <div class="kpi" data-icon="🚨" style="--kpi-accent:var(--red)">
           <div class="label">Cortes ≥6h</div>
           <div class="value" id="pkCriticos">–</div>
           <div class="sub">casos críticos</div>
@@ -328,27 +328,27 @@
     <div class="active-filters-bar" id="censoActiveFilters"></div>
 
     <div class="kpi-row kpi-row-5">
-      <div class="kpi" style="--kpi-accent:var(--navy)">
+      <div class="kpi" data-icon="📦" style="--kpi-accent:var(--navy)">
         <div class="label">Activos filtrados</div>
         <div class="value" id="cKpiTotal">–</div>
         <div class="sub" id="cKpiTotalSub">de – totales</div>
       </div>
-      <div class="kpi" style="--kpi-accent:#2e9e4f">
+      <div class="kpi" data-icon="✅" style="--kpi-accent:#2e9e4f">
         <div class="label">Censados</div>
         <div class="value" id="cKpiCensados">–</div>
         <div class="sub" id="cKpiPct">– % de avance</div>
       </div>
-      <div class="kpi" style="--kpi-accent:var(--red)">
+      <div class="kpi" data-icon="⏳" style="--kpi-accent:var(--red)">
         <div class="label">Pendientes de censo</div>
         <div class="value" id="cKpiPendientes">–</div>
         <div class="sub" id="cKpiPendientesPct">– % del total</div>
       </div>
-      <div class="kpi" style="--kpi-accent:var(--amber)">
+      <div class="kpi" data-icon="⚠️" style="--kpi-accent:var(--amber)">
         <div class="label">Pendientes &gt;30 días</div>
         <div class="value" id="cKpiViejos">–</div>
         <div class="sub">desde su ubicación</div>
       </div>
-      <div class="kpi" style="--kpi-accent:var(--muted)">
+      <div class="kpi" data-icon="🏬" style="--kpi-accent:var(--muted)">
         <div class="label">En patio Sagadis</div>
         <div class="value" id="cKpiPatio">–</div>
         <div class="sub">sin cliente asignado</div>
