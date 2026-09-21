@@ -1696,11 +1696,26 @@ if(typeof window.supabase === 'undefined'){
   console.error('window.supabase no está definido — el script de supabase-js no cargó.');
 }
 
-// Se usa sessionStorage (no localStorage) para que la sesión SOLO viva mientras
-// la pestaña/ventana del navegador esté abierta. Al cerrar el navegador, esa
-// sesión desaparece sola y la próxima vez pedirá login de nuevo.
+// La sesión vive SOLO en memoria (un Map, ni sessionStorage ni localStorage),
+// para que cualquier recarga de la página la borre por completo — ya sea una
+// recarga normal (F5), o una que fuerza el listener de "pageshow" de más
+// abajo cuando el navegador intenta restaurar la página desde su bfcache al
+// usar los botones Atrás/Adelante. En cualquiera de los dos casos, al volver
+// a ejecutarse el script desde cero no va a encontrar ninguna sesión guardada
+// y va a pedir usuario y contraseña otra vez. El costo de esto es que
+// refrescar la página por accidente también cierra la sesión — es la
+// contrapartida de que "salir y volver" siempre exija login.
+const memoryAuthStorage = (() => {
+  const store = new Map();
+  return {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => { store.set(key, value); },
+    removeItem: (key) => { store.delete(key); }
+  };
+})();
+
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+  auth: { storage: memoryAuthStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
 });
 
 // =====================================================================
