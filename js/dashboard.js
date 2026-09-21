@@ -248,7 +248,7 @@ async function fetchAndLoadData(isRetry){
     loader.style.display = 'none';
     document.getElementById('emptyTitle').textContent = 'No se pudo cargar el archivo automáticamente';
     document.getElementById('emptyText').textContent = 'Detalle: ' + err.message + '. Revisa que la URL del repositorio sea correcta, pública y que el enlace apunte al archivo "Raw".';
-    emptyLoadBtn.textContent = '↻ Reintentar';
+    emptyLoadBtn.querySelector('.btn-label').textContent = 'Reintentar';
     emptyLoadBtn.style.display = 'inline-flex';
     dashboardEl.style.display = 'none';
     emptyState.style.display = 'flex';
@@ -287,7 +287,7 @@ function onDataParsed(records){
     if(RAW.length === 0){
       document.getElementById('emptyTitle').textContent = 'El archivo no tiene filas válidas';
       document.getElementById('emptyText').textContent = 'Revisa el formato de columnas (se esperan encabezados como "Codigo Nevera", "Fecha Hora", "Evento"...).';
-      emptyLoadBtn.textContent = '↻ Reintentar';
+      emptyLoadBtn.querySelector('.btn-label').textContent = 'Reintentar';
       emptyLoadBtn.style.display = 'inline-flex';
       dashboardEl.style.display = 'none';
       emptyState.style.display = 'flex';
@@ -354,8 +354,8 @@ function createMultiSelect(containerId, {placeholder='Todos', onChange=()=>{}} =
     const visible = ft ? allOptions.filter(o=>o.toLowerCase().includes(ft)) : allOptions;
     optionsWrap.innerHTML = visible.map(o=>`
       <label class="msel-option">
-        <input type="checkbox" value="${o.replace(/"/g,'&quot;')}" ${isChecked(o) ? 'checked' : ''}>
-        <span>${o}</span>
+        <input type="checkbox" value="${escapeHtml(o)}" ${isChecked(o) ? 'checked' : ''}>
+        <span>${escapeHtml(o)}</span>
       </label>
     `).join('') || '<div class="msel-empty">Sin resultados</div>';
   }
@@ -901,7 +901,7 @@ function renderAlertMatrix(rows){
   let html = `<thead><tr><th>Distrito</th>${buckets.map(b=>`<th>${b} alerta${b==='1'?'':'s'}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
   distritos.forEach(d=>{
     const rowTotal = buckets.reduce((s,b)=>s+matrix[d][b],0);
-    html += `<tr><td>${d}</td>${buckets.map(b=>{
+    html += `<tr><td>${escapeHtml(d)}</td>${buckets.map(b=>{
       const v = matrix[d][b];
       return heatDot(v, maxCell);
     }).join('')}<td style="font-weight:600;">${rowTotal}</td></tr>`;
@@ -925,7 +925,7 @@ function renderHorarioMatrix(episodes){
   let html = `<thead><tr><th>Horario</th>${DUR_BUCKETS.map(d=>`<th>${d}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
   HORARIO_BUCKETS.forEach(h=>{
     const rowTotal = DUR_BUCKETS.reduce((s,d)=>s+matrix[h][d],0);
-    html += `<tr><td>${h}</td>${DUR_BUCKETS.map(d=>{
+    html += `<tr><td>${escapeHtml(h)}</td>${DUR_BUCKETS.map(d=>{
       const v = matrix[h][d];
       return heatDot(v, maxCell);
     }).join('')}<td style="font-weight:600;">${rowTotal}</td></tr>`;
@@ -954,7 +954,7 @@ function renderDistritoMatrix(episodes){
   let html = `<thead><tr><th>Distrito</th>${DUR_BUCKETS.map(d=>`<th>${d}</th>`).join('')}<th>Total</th></tr></thead><tbody>`;
   distritos.forEach(dt=>{
     const rowTotal = DUR_BUCKETS.reduce((s,d)=>s+matrix[dt][d],0);
-    html += `<tr><td>${dt}</td>${DUR_BUCKETS.map(d=>{
+    html += `<tr><td>${escapeHtml(dt)}</td>${DUR_BUCKETS.map(d=>{
       const v = matrix[dt][d];
       return heatDot(v, maxCell);
     }).join('')}<td style="font-weight:600;">${rowTotal}</td></tr>`;
@@ -994,7 +994,7 @@ function fmtDuracion(h){
 function initPlacaUI(){
   const devices = uniqueSorted([...new Set(RAW.map(r=>r.device))]);
   const dl = document.getElementById('placaList');
-  dl.innerHTML = devices.map(d=>`<option value="${d}">`).join('');
+  dl.innerHTML = devices.map(d=>`<option value="${escapeHtml(d)}">`).join('');
   const input = document.getElementById('placaSearch');
   input.value = '';
   document.getElementById('placaEmpty').style.display = 'flex';
@@ -1062,7 +1062,7 @@ function renderPlacaDetalle(device){
 
   document.getElementById('pkPlaca').textContent = device;
   if(groupKeys.length > 1){
-    document.getElementById('pkCliente').innerHTML = `<span style="color:var(--amber); font-weight:600;">⚠ ${groupKeys.length} clientes distintos</span> · ver tabla abajo`;
+    document.getElementById('pkCliente').innerHTML = `<span class="inline-icon" style="color:var(--amber); font-weight:600;">${ICONS.alertTriangle.replace('class="icon"','class="icon" style="width:13px;height:13px;"')} ${groupKeys.length} clientes distintos</span> · ver tabla abajo`;
   } else {
     document.getElementById('pkCliente').textContent = periods[0] ? `${periods[0].cliente} · ${periods[0].locacion}` : 'Sin registros';
   }
@@ -1072,8 +1072,8 @@ function renderPlacaDetalle(device){
   periods.slice().reverse().forEach(p=>{
     const incidentesPeriodo = allEps.filter(e=> e.start >= p.desde && e.start <= p.hasta).length;
     clHtml += `<tr>
-      <td>${p.cliente}</td>
-      <td>${p.locacion}</td>
+      <td>${escapeHtml(p.cliente)}</td>
+      <td>${escapeHtml(p.locacion)}</td>
       <td>${fmtDate(p.desde)}</td>
       <td>${fmtDate(p.hasta)}</td>
       <td>${incidentesPeriodo}</td>
@@ -1088,7 +1088,7 @@ function renderPlacaDetalle(device){
   if(groupKeys.length > 1){
     filterWrap.style.display = 'flex';
     select.innerHTML = `<option value="__ALL__">Todos los clientes (${groupKeys.length})</option>` +
-      groupKeys.map(key=>`<option value="${key.replace(/"/g,'&quot;')}">${groups[key].label}</option>`).join('');
+      groupKeys.map(key=>`<option value="${escapeHtml(key)}">${escapeHtml(groups[key].label)}</option>`).join('');
     select.value = '__ALL__';
     select.onchange = () => renderPlacaHistorial(device, select.value, groups);
   } else {
@@ -1134,9 +1134,9 @@ function renderPlacaHistorial(device, clienteFilter, groups){
       <td>${pad(e.start.getHours())}:${pad(e.start.getMinutes())}</td>
       <td>${e.end ? pad(e.end.getHours())+':'+pad(e.end.getMinutes()) : '—'}</td>
       <td style="color:${durColor}; font-weight:600;">${fmtDuracion(e.hours)}</td>
-      <td>${e.cliente}</td>
-      <td>${e.startEvento||'–'}</td>
-      <td>${e.locacion}</td>
+      <td>${escapeHtml(e.cliente)}</td>
+      <td>${escapeHtml(e.startEvento||'–')}</td>
+      <td>${escapeHtml(e.locacion)}</td>
       <td>${e.ongoing ? '<span style="color:var(--red);">En curso</span>' : 'Cerrado'}</td>
     </tr>`;
   });
@@ -1197,8 +1197,8 @@ async function fetchAndLoadCenso(){
     setSourceStatus('Censo', 'error', 'error al cargar');
     mapEl.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--red);text-align:center;padding:20px;gap:10px;">
       <div>No se pudo cargar el archivo de censo.</div>
-      <div style="font-size:12px;color:var(--muted); max-width:420px;">${err.message}</div>
-      <button class="btn btn-primary" id="censoRetryBtn">↻ Reintentar</button>
+      <div style="font-size:12px;color:var(--muted); max-width:420px;">${escapeHtml(err.message)}</div>
+      <button class="btn btn-primary" id="censoRetryBtn">${ICONS.refresh}<span class="btn-label">Reintentar</span></button>
     </div>`;
     document.getElementById('censoRetryBtn')?.addEventListener('click', fetchAndLoadCenso);
   }
@@ -1327,19 +1327,19 @@ function renderCensoPendientesTable(rows){
   const now = new Date();
   let html = '<thead><tr><th>Placa</th><th>Cliente</th><th>Canal</th><th>Vendedor</th><th>Distrito</th><th>Status</th><th>Días pendiente</th></tr></thead><tbody>';
   if(pend.length === 0){
-    html += '<tr><td colspan="7" style="text-align:center; color:var(--muted2); padding:18px;">No hay activos pendientes con estos filtros 🎉</td></tr>';
+    html += `<tr><td colspan="7" style="text-align:center; color:var(--muted2); padding:18px;"><span class="inline-icon">${ICONS.checkCircle} No hay activos pendientes con estos filtros</span></td></tr>`;
   }
   pend.slice(0, MAX_ROWS).forEach(r=>{
     const dias = r.fechaUbicacion ? Math.floor((now - r.fechaUbicacion)/86400000) : null;
     const diasTxt = dias === null ? 'Sin fecha' : `${dias} días`;
     const diasColor = dias === null ? 'var(--muted2)' : dias >= 90 ? 'var(--red)' : dias >= 30 ? 'var(--amber)' : 'var(--muted)';
     html += `<tr>
-      <td class="mono">${r.placa || '–'}</td>
-      <td>${r.cliente}</td>
-      <td>${r.canal}</td>
-      <td>${r.vendedor}</td>
-      <td>${r.distrito}</td>
-      <td>${r.status}</td>
+      <td class="mono">${escapeHtml(r.placa || '–')}</td>
+      <td>${escapeHtml(r.cliente)}</td>
+      <td>${escapeHtml(r.canal)}</td>
+      <td>${escapeHtml(r.vendedor)}</td>
+      <td>${escapeHtml(r.distrito)}</td>
+      <td>${escapeHtml(r.status)}</td>
       <td style="color:${diasColor}; font-weight:600;">${diasTxt}</td>
     </tr>`;
   });
@@ -1382,7 +1382,7 @@ function renderCensoActiveFilters(f){
   }
   if(chips.length === 0){ wrap.innerHTML = ''; return; }
   wrap.innerHTML = chips.map((c,i)=>`
-    <span class="filter-chip">${c.text}<span class="chip-x" data-chip="${i}">✕</span></span>
+    <span class="filter-chip">${escapeHtml(c.text)}<span class="chip-x" data-chip="${i}">${ICONS.x}</span></span>
   `).join('');
   wrap.querySelectorAll('.chip-x').forEach(el=>{
     el.addEventListener('click', ()=>{
@@ -1478,7 +1478,7 @@ function renderCanalGauges(containerId, rows, excludeValues){
     valEl.textContent = fmtPct(it.pct);
     valEl.style.color = color;
     document.getElementById(`canalGaugeLabel_${idx}`).innerHTML =
-      `<b>${it.label}</b><br>${it.censados.toLocaleString('es-PE')}/${it.total.toLocaleString('es-PE')} activos`;
+      `<b>${escapeHtml(it.label)}</b><br>${it.censados.toLocaleString('es-PE')}/${it.total.toLocaleString('es-PE')} activos`;
     const canvas = document.getElementById(`canalGauge_${idx}`);
     if(canalGaugeCharts[idx]){
       canalGaugeCharts[idx].data.datasets[0].data = [it.pct, 100-it.pct];
@@ -1521,8 +1521,8 @@ function renderCensoAvance(containerId, rows, field, topN, excludeValues){
     const [c1,c2] = it.pct >= 95 ? ['#2e9e4f','#1a7a3c'] : it.pct >= 80 ? ['#e0a80c','#c67c0a'] : ['#e2574c','#c0392b'];
     const tip = `${it.label}: ${it.pendientes.toLocaleString('es-PE')} pendientes de ${it.total.toLocaleString('es-PE')} activos — clic para ver el detalle`;
     return `
-    <div class="bar-wrap bar-clickable" data-field="${field}" data-label="${it.label.replace(/"/g,'&quot;')}" title="${tip}">
-      <div class="bar-label">${it.label}</div>
+    <div class="bar-wrap bar-clickable" data-field="${field}" data-label="${escapeHtml(it.label)}" title="${escapeHtml(tip)}">
+      <div class="bar-label">${escapeHtml(it.label)}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${it.pct}%; background:linear-gradient(90deg, ${c1}, ${c2});"></div></div>
       <div class="bar-val">${fmtPct(it.pct)}</div>
     </div>`;
@@ -1549,7 +1549,7 @@ function renderCensoAntiguedad(rows){
     html += `<tr><td>${k}</td><td style="font-weight:600;">${v.toLocaleString('es-PE')}</td></tr>`;
   });
   html += `<tr class="total-row"><td>Total pendientes</td><td>${total.toLocaleString('es-PE')}</td></tr></tbody>`;
-  document.getElementById('tblCensoAntiguedad').innerHTML = total ? html : '<tbody><tr><td>No hay activos pendientes en el rango filtrado 🎉</td></tr></tbody>';
+  document.getElementById('tblCensoAntiguedad').innerHTML = total ? html : `<tbody><tr><td><span class="inline-icon">${ICONS.checkCircle} No hay activos pendientes en el rango filtrado</span></td></tr></tbody>`;
 }
 
 function makeDotIcon(color){
@@ -1616,11 +1616,11 @@ function renderCensoMap(rows){
     const marker = L.marker([r.lat, r.lng], { icon: r.censado ? iconOk : iconPend, censado: r.censado });
     marker.bindPopup(`
       <div class="censo-popup">
-        <b>${r.placa || 'Sin placa'}</b> · ${r.tipoActivo}<br>
-        ${r.cliente}<br>
-        Canal: ${r.canal} · Vendedor: ${r.vendedor}<br>
-        Distrito: ${r.distrito}<br>
-        Status: ${r.censado ? '<span class="tag-ok">'+r.status+'</span>' : '<span class="tag-pend">'+r.status+'</span>'}
+        <b>${escapeHtml(r.placa || 'Sin placa')}</b> · ${escapeHtml(r.tipoActivo)}<br>
+        ${escapeHtml(r.cliente)}<br>
+        Canal: ${escapeHtml(r.canal)} · Vendedor: ${escapeHtml(r.vendedor)}<br>
+        Distrito: ${escapeHtml(r.distrito)}<br>
+        Status: ${r.censado ? '<span class="tag-ok">'+escapeHtml(r.status)+'</span>' : '<span class="tag-pend">'+escapeHtml(r.status)+'</span>'}
       </div>
     `);
     return marker;
