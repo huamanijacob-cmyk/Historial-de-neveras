@@ -11,6 +11,18 @@
     --amber:#c67c0a;
     --red:#c0392b;
     --red-soft:#fbe7e4;
+    --green:#1f8f57;
+    --green-dark:#146b40;
+    --green-soft:#e5f4ec;
+    /* Paleta categórica (identidad de Canal) — deliberadamente separada de
+       --red/--amber/--green, que en este dashboard siempre significan
+       severidad o estado (crítico / advertencia / completado). Usar esos
+       mismos tonos para distinguir categorías (ej. Triciclo, Horeca) hacía
+       que se leyeran como una alerta en vez de una etiqueta neutral. */
+    --cat-1:#3956b3;
+    --cat-2:#b8863f;
+    --cat-3:#2f7ea6;
+    --cat-4:#7a5cad;
     --text:#1b2436;
     --muted:#6b7688;
     --muted2:#98a1b0;
@@ -29,7 +41,7 @@
     padding:22px 26px 60px;
   }
   h1,h2,h3{font-family:'Space Grotesk',sans-serif; margin:0; color:var(--navy-dark);}
-  .mono{font-family:'IBM Plex Mono',monospace;}
+  .mono{font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
 
   /* ---- header ---- */
   .topbar{display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin-bottom:18px;}
@@ -39,11 +51,11 @@
   .brand-mark svg{width:22px; height:22px;}
   .brand h1{font-size:19px; font-weight:700; letter-spacing:.1px;}
   .brand .sub{font-size:12.5px; color:var(--muted); margin-top:3px; display:flex; align-items:center; gap:8px;}
-  .live-dot{width:7px; height:7px; border-radius:50%; background:#2e9e4f; box-shadow:0 0 0 0 rgba(46,158,79,.6); animation:pulse 2s infinite;}
+  .live-dot{width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 0 rgba(31,143,87,.6); animation:pulse 2s infinite;}
   @keyframes pulse{
-    0%{box-shadow:0 0 0 0 rgba(46,158,79,.45);}
-    70%{box-shadow:0 0 0 8px rgba(46,158,79,0);}
-    100%{box-shadow:0 0 0 0 rgba(46,158,79,0);}
+    0%{box-shadow:0 0 0 0 rgba(31,143,87,.45);}
+    70%{box-shadow:0 0 0 8px rgba(31,143,87,0);}
+    100%{box-shadow:0 0 0 0 rgba(31,143,87,0);}
   }
   .file-controls{display:flex; align-items:center; gap:10px;}
   .btn{
@@ -84,7 +96,7 @@
   }
   .kpi::before{content:''; position:absolute; top:0; left:0; width:3px; height:100%; background:var(--kpi-accent,var(--navy));}
   .kpi .label{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; font-weight:600; padding-right:34px;}
-  .kpi .value{font-family:'Space Grotesk',sans-serif; font-size:27px; font-weight:700; margin-top:6px; color:var(--navy-dark);}
+  .kpi .value{font-family:'Space Grotesk',sans-serif; font-size:27px; font-weight:700; margin-top:6px; color:var(--navy-dark); font-variant-numeric:tabular-nums; letter-spacing:-.01em;}
   .kpi .sub{font-size:11.5px; color:var(--muted2); margin-top:4px;}
 
   /* ---- panels grid ---- */
@@ -93,13 +105,13 @@
     background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px 18px;
     box-shadow:var(--shadow);
   }
-  .panel h3{font-size:13.5px; font-weight:700; letter-spacing:.02em;}
+  .panel h3{font-size:12.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--navy-dark);}
   .panel .panel-sub{font-size:11.5px; color:var(--muted2); margin-top:2px; margin-bottom:12px;}
   .panel-head{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;}
   .badge{font-size:10.5px; color:var(--navy); background:var(--navy-soft); border:1px solid #c9d3ef; padding:2px 8px; border-radius:20px; font-family:'IBM Plex Mono',monospace; font-weight:600;}
 
   table{width:100%; border-collapse:collapse; font-size:12.5px;}
-  th, td{padding:7px 9px; text-align:center; font-family:'IBM Plex Mono',monospace;}
+  th, td{padding:7px 9px; text-align:center; font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums;}
   th{color:var(--muted); font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1.5px solid var(--border);}
   td:first-child, th:first-child{text-align:left; font-family:'Inter',sans-serif; color:var(--text); font-weight:500;}
   tbody tr{border-bottom:1px solid var(--border);}
@@ -177,7 +189,7 @@
 #censoMap{ background:var(--panel2); }
 .censo-popup{ font-family:'Inter',sans-serif; font-size:12.5px; line-height:1.5; }
 .censo-popup b{ color:var(--navy-dark); }
-.censo-popup .tag-ok{ color:#2e9e4f; font-weight:700; }
+.censo-popup .tag-ok{ color:var(--green); font-weight:700; }
 .censo-popup .tag-pend{ color:var(--red); font-weight:700; }
 .leaflet-popup-content-wrapper{ border-radius:10px; }
 
@@ -191,7 +203,7 @@
   box-shadow:var(--shadow);
 }
 .source-dot{ width:7px; height:7px; border-radius:50%; background:var(--muted2); flex-shrink:0; }
-.source-dot.ok{ background:#2e9e4f; }
+.source-dot.ok{ background:var(--green); }
 .source-dot.error{ background:var(--red); }
 .source-dot.loading{ background:var(--gold); animation:pulse 2s infinite; }
 .source-module{ color:var(--navy); }
@@ -412,9 +424,9 @@
 
 /* ---- botón de exportar (dentro de un panel-head) ---- */
 .btn-export{
-  font-size:11px; padding:5px 11px; gap:5px; background:#e9f5ec; border-color:#bfe3c9; color:#1a7a3c;
+  font-size:11px; padding:5px 11px; gap:5px; background:var(--green-soft); border-color:#bcdfcb; color:var(--green-dark);
 }
-.btn-export:hover{ background:#1a7a3c; border-color:#1a7a3c; color:#fff; }
+.btn-export:hover{ background:var(--green-dark); border-color:var(--green-dark); color:#fff; }
 
 /* ---- gauges circulares de Avance por Canal ---- */
 .canal-gauges{ display:grid; grid-template-columns:repeat(auto-fit, minmax(110px,1fr)); gap:14px; padding:6px 0 2px; }
@@ -451,7 +463,7 @@
 
 /* ---- puntos de leyenda de color plano (reemplazan 🟢/🔴 en el mapa) ---- */
 .legend-dot{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:3px; vertical-align:middle; }
-.legend-dot-ok{ background:#2e9e4f; }
+.legend-dot-ok{ background:var(--green); }
 .legend-dot-pending{ background:var(--red); }
 
 /* ---- ícono en línea dentro de texto (advertencias, estados) ---- */
