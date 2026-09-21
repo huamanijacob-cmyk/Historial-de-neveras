@@ -1617,7 +1617,6 @@ function renderCensoMap(rows){
       div.innerHTML = `
         <div><span class="dot" style="background:${COLOR_GREEN};"></span>Censado</div>
         <div><span class="dot" style="background:${COLOR_RED};"></span>Pendiente</div>
-        <div style="margin-top:4px; color:var(--muted2); font-size:10.5px;">Círculos: grupos de activos · el color indica su % de avance</div>
       `;
       return div;
     };
@@ -1676,6 +1675,21 @@ document.querySelectorAll('.module-tabbar .tab-btn').forEach(btn=>{
 });
 
 // ---------------- Autenticación (Supabase) ----------------
+
+// Si el navegador restaura esta página desde su "back-forward cache"
+// (bfcache) — por ejemplo, alguien navega con los botones Atrás/Adelante del
+// navegador después de cerrar sesión, o simplemente deja la pestaña y otra
+// persona usa esos botones — NO hay que confiar en lo que haya quedado
+// pintado en pantalla en ese momento: hay que forzar una recarga real, que
+// vuelve a correr todo el script desde cero y revisa la sesión contra
+// Supabase otra vez. Sin esto, es posible ver el dashboard ya autenticado
+// sin que se pida login, aunque la sesión ya no sea válida.
+window.addEventListener('pageshow', (e) => {
+  if(e.persisted){
+    location.reload();
+  }
+});
+
 if(typeof window.supabase === 'undefined'){
   document.getElementById('loginError').textContent = 'No se pudo cargar la librería de autenticación (Supabase). Revisa tu conexión a internet y recarga la página.';
   document.getElementById('loginError').style.display = 'block';
@@ -1711,12 +1725,26 @@ async function downloadFromStorage(path){
   const fechaRaw = meta?.updated_at || meta?.created_at || null;
   const fecha = fechaRaw && !isNaN(new Date(fechaRaw).getTime()) ? new Date(fechaRaw) : null;
 
-  const { data: blob, error: dlErr } = await supabaseClient
-    .storage.from(STORAGE_BUCKET)
-    .download(path);
-  if(dlErr){
-    throw new Error(`No se pudo descargar "${path}" del bucket "${STORAGE_BUCKET}": ${dlErr.message}. Revisa que el archivo exista ahí (con ese nombre exacto) y que la política de acceso permita SELECT a usuarios authenticated.`);
+  // La descarga se arma a mano (en vez de usar supabaseClient.storage.download,
+  // que no deja meter un parámetro de "cachebust") para garantizar que el
+  // navegador SIEMPRE traiga la versión más reciente del archivo. Sin esto,
+  // si actualizas el Excel en Supabase con la pestaña ya abierta, el navegador
+  // puede seguir sirviendo desde su caché la copia vieja hasta que esa caché
+  // expire por su cuenta — el mismo problema que teníamos antes con GitHub.
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if(!session) throw new Error('No hay una sesión activa. Vuelve a iniciar sesión e intenta de nuevo.');
+  const url = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${encodeURIComponent(path)}?cachebust=${Date.now()}`;
+  const res = await fetch(url, {
+    cache: 'no-store', // nunca leer ni guardar en la caché del navegador
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+      apikey: SUPABASE_ANON_KEY
+    }
+  });
+  if(!res.ok){
+    throw new Error(`No se pudo descargar "${path}" del bucket "${STORAGE_BUCKET}" (HTTP ${res.status}). Revisa que el archivo exista ahí (con ese nombre exacto) y que la política de acceso permita SELECT a usuarios authenticated.`);
   }
+  const blob = await res.blob();
 
   return { blob, fecha, ext: path.split('.').pop().toLowerCase() };
 }
