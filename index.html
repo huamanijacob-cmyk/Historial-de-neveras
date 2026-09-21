@@ -423,7 +423,7 @@
 
   </div><!-- /module-censo -->
 
-  <footer>Reporte generado en tu navegador a partir del archivo del repositorio · No se envían datos a ningún servidor</footer>
+  <footer>Reporte generado en tu navegador a partir de tus archivos en Supabase Storage · No se envían datos a ningún servidor externo</footer>
 </div>
 
 </div>
@@ -438,10 +438,19 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_QXYMGe2MCa6ei6MvSKLj_A_Ldmt7B51';
 
   // =====================================================================
-  // Archivo de CENSO DE ACTIVOS — súbelo a tu mismo repo de GitHub con
-  // este nombre exacto (o cambia la URL de abajo si prefieres otro nombre)
+  // FUENTE DE DATOS — Supabase Storage (bucket PRIVADO)
+  // Censo_Activos.xlsx e Historial_de_alertas.xlsx viven en un bucket
+  // privado de Supabase Storage, protegido por una política de acceso que
+  // solo deja descargar a usuarios con sesión iniciada (el mismo login de
+  // arriba). Ya NO se descargan desde GitHub — ese repo puede quedar
+  // público porque ahí ya no hay datos sensibles.
+  //
+  // Escribe aquí el nombre exacto del bucket y de cada archivo tal como
+  // los subiste en Supabase → Storage.
   // =====================================================================
-  const DATA_SOURCE_URL_CENSO = 'https://raw.githubusercontent.com/huamanijacob-cmyk/Historial-de-neveras/main/Censo_Activos.xlsx';
+  const STORAGE_BUCKET = 'activos-data';
+  const STORAGE_PATH_DESCONEXIONES = 'Historial_de_alertas.xlsx';
+  const STORAGE_PATH_CENSO = 'Censo_Activos.xlsx';
 </script>
 <script src="js/dashboard.js"></script>
 </body>
