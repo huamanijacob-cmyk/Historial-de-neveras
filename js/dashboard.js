@@ -6,6 +6,13 @@
 // abajo, después de que se crea supabaseClient.
 // =========================================================================
 
+// Marca de versión — visible en la consola del navegador (F12 → Console).
+// Útil para confirmar que el navegador está corriendo el archivo nuevo y no
+// una copia vieja en caché. Súbela cada vez que reemplaces este archivo (y
+// el ?v=N de index.html) para forzar que el navegador traiga la versión
+// fresca en vez de reusar la que tenía guardada.
+console.log('SAGADIS dashboard.js — versión 3');
+
 // =========================================================================
 // PALETA DE COLORES — reflejan las variables de css/styles.css. Centralizada
 // aquí porque Chart.js y Leaflet no pueden leer variables CSS directamente.
