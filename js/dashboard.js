@@ -6,6 +6,24 @@
 // =========================================================================
 const DATA_SOURCE_URL = 'https://raw.githubusercontent.com/huamanijacob-cmyk/Historial-de-neveras/main/Historial_de_alertas.xlsx';
 
+// =========================================================================
+// PALETA DE COLORES — reflejan las variables de css/styles.css. Centralizada
+// aquí porque Chart.js y Leaflet no pueden leer variables CSS directamente.
+//
+// Regla del proyecto: rojo/ámbar/verde SIEMPRE significan severidad o estado
+// (crítico / advertencia / completado). Nunca se usan para distinguir una
+// categoría (ej. un Canal) — para eso está la paleta categórica (COLOR_CAT),
+// que es intencionalmente ajena al rojo y al verde.
+// =========================================================================
+const COLOR_NAVY   = '#0c2461';
+const COLOR_GOLD   = '#e0a80c';
+const COLOR_AMBER  = '#c67c0a';
+const COLOR_RED    = '#c0392b';
+const COLOR_GREEN      = '#1f8f57';
+const COLOR_GREEN_DARK = '#146b40';
+// Paleta categórica — identidad de Canal (y cualquier otra categoría futura).
+const COLOR_CAT = ['#3956b3', '#b8863f', '#2f7ea6', '#7a5cad', '#5c6b8c', '#a6763f', '#5c8a99', '#8a6bab', '#6d5a4e'];
+
 const fixMojibake = (s) => {
   if (typeof s !== 'string') return s;
   try {
@@ -681,10 +699,10 @@ function heatColor(value, max){
   let bg;
   if(t < 0.5){
     const p = t/0.5;
-    bg = mix('#d9f0df','#f2c94c',p);
+    bg = mix('#cdeedd','#f2c94c',p); // verde pálido -> dorado
   } else {
     const p = (t-0.5)/0.5;
-    bg = mix('#f2c94c','#c0392b',p);
+    bg = mix('#f2c94c',COLOR_RED,p); // dorado -> rojo
   }
   const fg = t > 0.62 ? '#ffffff' : '#1b2436';
   return {bg, fg};
@@ -715,7 +733,7 @@ function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>
 // "más críticos": más rico visualmente que un simple verde-a-rojo, y sigue
 // leyéndose de forma intuitiva (más intenso el color = más grave).
 function mix3(p){
-  return p < 0.5 ? mix('#3b5bdb', '#e0a80c', p/0.5) : mix('#e0a80c', '#c0392b', (p-0.5)/0.5);
+  return p < 0.5 ? mix(COLOR_NAVY, COLOR_GOLD, p/0.5) : mix(COLOR_GOLD, COLOR_RED, (p-0.5)/0.5);
 }
 
 // ---------------- Gráficos de barra (Chart.js) para los Top 10 ----------------
@@ -1430,8 +1448,8 @@ function renderCensoKPIs(rows){
 
 // Colores propios por canal (no la escala de severidad verde/rojo) — para que
 // este panel se sienta distinto y con más variedad visual que el resto.
-const CANAL_COLORS = { 'Horizontal':'#3b5bdb', 'Ambulatorio':'#e0a80c', 'Horeca':'#0f9b8e', 'Triciclo':'#e2574c' };
-const CANAL_COLOR_FALLBACK = ['#6c5ce7','#00b894','#fd79a8','#0984e3','#e17055'];
+const CANAL_COLORS = { 'Horizontal':COLOR_CAT[0], 'Ambulatorio':COLOR_CAT[1], 'Horeca':COLOR_CAT[2], 'Triciclo':COLOR_CAT[3] };
+const CANAL_COLOR_FALLBACK = COLOR_CAT.slice(4);
 let canalGaugeCharts = {};
 
 function renderCanalGauges(containerId, rows, excludeValues){
@@ -1518,7 +1536,7 @@ function renderCensoAvance(containerId, rows, field, topN, excludeValues){
     return;
   }
   container.innerHTML = limited.map(it=>{
-    const [c1,c2] = it.pct >= 95 ? ['#2e9e4f','#1a7a3c'] : it.pct >= 80 ? ['#e0a80c','#c67c0a'] : ['#e2574c','#c0392b'];
+    const [c1,c2] = it.pct >= 95 ? [COLOR_GREEN,COLOR_GREEN_DARK] : it.pct >= 80 ? [COLOR_GOLD,COLOR_AMBER] : ['#d9594c',COLOR_RED];
     const tip = `${it.label}: ${it.pendientes.toLocaleString('es-PE')} pendientes de ${it.total.toLocaleString('es-PE')} activos — clic para ver el detalle`;
     return `
     <div class="bar-wrap bar-clickable" data-field="${field}" data-label="${escapeHtml(it.label)}" title="${escapeHtml(tip)}">
@@ -1584,7 +1602,7 @@ function renderCensoMap(rows){
         const total = children.length;
         const ok = children.filter(m=>m.options.censado).length;
         const pct = total ? Math.round(ok/total*100) : 0;
-        const color = pct >= 90 ? '#2e9e4f' : pct >= 70 ? '#c67c0a' : '#c0392b';
+        const color = pct >= 90 ? COLOR_GREEN : pct >= 70 ? COLOR_AMBER : COLOR_RED;
         const size = total < 20 ? 34 : total < 100 ? 42 : 52;
         return L.divIcon({
           html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:${size>44?13:11.5}px;border:3px solid rgba(255,255,255,.85);box-shadow:0 2px 8px rgba(16,24,48,.35);">${total}</div>`,
@@ -1599,8 +1617,8 @@ function renderCensoMap(rows){
     legend.onAdd = function(){
       const div = L.DomUtil.create('div', 'censo-map-legend');
       div.innerHTML = `
-        <div><span class="dot" style="background:#2e9e4f;"></span>Censado</div>
-        <div><span class="dot" style="background:#c0392b;"></span>Pendiente</div>
+        <div><span class="dot" style="background:${COLOR_GREEN};"></span>Censado</div>
+        <div><span class="dot" style="background:${COLOR_RED};"></span>Pendiente</div>
         <div style="margin-top:4px; color:var(--muted2); font-size:10.5px;">Círculos: grupos de activos · el color indica su % de avance</div>
       `;
       return div;
@@ -1610,8 +1628,8 @@ function renderCensoMap(rows){
     censoMarkersLayer.clearLayers();
   }
 
-  const iconOk = makeDotIcon('#2e9e4f');
-  const iconPend = makeDotIcon('#c0392b');
+  const iconOk = makeDotIcon(COLOR_GREEN);
+  const iconPend = makeDotIcon(COLOR_RED);
   const markers = withCoords.map(r=>{
     const marker = L.marker([r.lat, r.lng], { icon: r.censado ? iconOk : iconPend, censado: r.censado });
     marker.bindPopup(`
