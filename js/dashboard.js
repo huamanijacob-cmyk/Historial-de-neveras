@@ -1,10 +1,10 @@
 // =========================================================================
-// CONFIGURACIÓN DE LA FUENTE DE DATOS
-// Reemplaza esta URL por el link "Raw" de tu archivo en GitHub, por ejemplo:
-// https://raw.githubusercontent.com/tu-usuario/tu-repo/main/Historial_de_alertas.csv
-// También funciona con un .xlsx si lo prefieres.
+// FUENTE DE DATOS
+// STORAGE_BUCKET, STORAGE_PATH_DESCONEXIONES y STORAGE_PATH_CENSO se
+// configuran en index.html (sección "FUENTE DE DATOS"). Los archivos viven
+// en un bucket PRIVADO de Supabase Storage — ver downloadFromStorage() más
+// abajo, después de que se crea supabaseClient.
 // =========================================================================
-const DATA_SOURCE_URL = 'https://raw.githubusercontent.com/huamanijacob-cmyk/Historial-de-neveras/main/Historial_de_alertas.xlsx';
 
 // =========================================================================
 // PALETA DE COLORES — reflejan las variables de css/styles.css. Centralizada
@@ -204,21 +204,13 @@ fileInput.onchange = (e) => { if(e.target.files[0]) handleFile(e.target.files[0]
   });
 });
 
-// Trae el archivo directamente desde DATA_SOURCE_URL (por ejemplo, un raw.githubusercontent.com)
-// y lo procesa igual que si el usuario lo hubiera subido a mano.
+// Trae el archivo desde el bucket privado de Supabase Storage (ver
+// downloadFromStorage, definida junto a supabaseClient más abajo) y lo
+// procesa igual que si el usuario lo hubiera subido a mano.
 // ---------------- Barra de estado de fuentes de datos ----------------
 function fmtDateCorta(d){
   if(!d || isNaN(d.getTime())) return '';
   return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear().toString().slice(-2)}`;
-}
-
-// GitHub expone la fecha real del archivo (cuándo se subió/actualizó) en la
-// cabecera 'Last-Modified' de la respuesta — no hay que adivinarla del contenido.
-function getFechaArchivo(res){
-  const header = res.headers.get('Last-Modified');
-  if(!header) return null;
-  const d = new Date(header);
-  return isNaN(d.getTime()) ? null : d;
 }
 
 function setSourceStatus(which, state, text){
@@ -235,26 +227,20 @@ async function fetchAndLoadData(isRetry){
   document.getElementById('loaderText').textContent = isRetry ? 'Actualizando datos…' : 'Cargando datos…';
   emptyLoadBtn.style.display = 'none';
   document.getElementById('emptyTitle').textContent = isRetry ? 'Actualizando datos…' : 'Cargando datos…';
-  document.getElementById('emptyText').textContent = 'Obteniendo el archivo más reciente desde el repositorio.';
+  document.getElementById('emptyText').textContent = 'Obteniendo el archivo más reciente desde Supabase Storage.';
   setSourceStatus('Desc', 'loading', 'cargando…');
 
   try{
-    // cachebust evita que el navegador muestre una copia vieja en caché
-    const sep = DATA_SOURCE_URL.includes('?') ? '&' : '?';
-    const res = await fetch(DATA_SOURCE_URL + sep + 'cachebust=' + Date.now());
-    if(!res.ok) throw new Error('No se pudo descargar el archivo (HTTP ' + res.status + ')');
-    fechaArchivoDesc = getFechaArchivo(res);
-
-    const cleanUrl = DATA_SOURCE_URL.split('?')[0];
-    const ext = cleanUrl.split('.').pop().toLowerCase();
-    loadedFileName = cleanUrl.split('/').pop();
+    const { blob, fecha, ext } = await downloadFromStorage(STORAGE_PATH_DESCONEXIONES);
+    fechaArchivoDesc = fecha;
+    loadedFileName = STORAGE_PATH_DESCONEXIONES;
 
     if(ext === 'csv'){
-      const text = await res.text();
+      const text = await blob.text();
       const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
       onDataParsed(parsed.data);
     } else if(ext === 'xlsx' || ext === 'xls'){
-      const buf = await res.arrayBuffer();
+      const buf = await blob.arrayBuffer();
       const wb = XLSX.read(buf, {type:'array', cellDates:true});
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(sheet, {defval:'', cellDates:true});
@@ -265,7 +251,7 @@ async function fetchAndLoadData(isRetry){
   } catch(err){
     loader.style.display = 'none';
     document.getElementById('emptyTitle').textContent = 'No se pudo cargar el archivo automáticamente';
-    document.getElementById('emptyText').textContent = 'Detalle: ' + err.message + '. Revisa que la URL del repositorio sea correcta, pública y que el enlace apunte al archivo "Raw".';
+    document.getElementById('emptyText').textContent = 'Detalle: ' + err.message;
     emptyLoadBtn.querySelector('.btn-label').textContent = 'Reintentar';
     emptyLoadBtn.style.display = 'inline-flex';
     dashboardEl.style.display = 'none';
@@ -691,21 +677,51 @@ function renderKPIs(rows, episodes){
   document.getElementById('kpiBateria').textContent = critBat.toLocaleString('es-PE');
 }
 
+function mix(c1,c2,p){
+  const a = hexToRgb(c1), b = hexToRgb(c2);
+  const r = Math.round(a[0]+(b[0]-a[0])*p);
+  const g = Math.round(a[1]+(b[1]-a[1])*p);
+  const bl = Math.round(a[2]+(b[2]-a[2])*p);
+  return [r,g,bl];
+}
+function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+function rgbCss(rgb){ return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`; }
+
+// Luminancia relativa (fórmula de WCAG 2.x) de un color RGB — se usa para
+// elegir, con matemática real y no con un umbral adivinado, si un texto se
+// lee mejor en blanco o en el azul-marino oscuro de texto del dashboard.
+function relLuminance(rgb){
+  const lin = c => { const v = c/255; return v <= 0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); };
+  return 0.2126*lin(rgb[0]) + 0.7152*lin(rgb[1]) + 0.0722*lin(rgb[2]);
+}
+const TEXT_DARK_LUMINANCE = relLuminance(hexToRgb('#1b2436'));
+
+// Texto blanco o azul-marino oscuro, el que dé MÁS contraste real contra un
+// fondo dado. Así el número dentro de cada heat-dot se lee bien en cualquier
+// punto del degradado, incluso para alguien con baja visión.
+function bestTextColor(rgb){
+  const L = relLuminance(rgb);
+  const contrastWhite = 1.05 / (L + 0.05);
+  const contrastDark  = (L + 0.05) / (TEXT_DARK_LUMINANCE + 0.05);
+  return contrastWhite >= contrastDark ? '#ffffff' : '#1b2436';
+}
+
+// Degradado de severidad único para TODO el dashboard (barras "Top 10", mapas
+// de calor de alertas, etc.): pálido -> dorado -> rojo. Antes el extremo bajo
+// usaba el azul-marino de marca directamente, y mezclar azul oscuro con
+// dorado en RGB da un tramo intermedio "sucio" (verde-oliva apagado). Partir
+// de un azul-marino MUY pálido evita ese problema y mantiene la lectura
+// intuitiva: mientras más intenso el color, más grave el dato.
+const SEVERITY_LOW = '#cdd6ef';
+function severityColor(p){
+  return p < 0.5 ? mix(SEVERITY_LOW, COLOR_GOLD, p/0.5) : mix(COLOR_GOLD, COLOR_RED, (p-0.5)/0.5);
+}
+
 function heatColor(value, max){
   if(max<=0 || value<=0) return {bg:'transparent', fg:'inherit'};
   const t = Math.min(value/max, 1);
-  // verde (bajo) -> dorado (medio) -> rojo (alto) — mismo tono "semáforo" que el
-  // módulo de Censo, para que ambos se sientan parte de un mismo producto.
-  let bg;
-  if(t < 0.5){
-    const p = t/0.5;
-    bg = mix('#cdeedd','#f2c94c',p); // verde pálido -> dorado
-  } else {
-    const p = (t-0.5)/0.5;
-    bg = mix('#f2c94c',COLOR_RED,p); // dorado -> rojo
-  }
-  const fg = t > 0.62 ? '#ffffff' : '#1b2436';
-  return {bg, fg};
+  const rgb = severityColor(t);
+  return {bg: rgbCss(rgb), fg: bestTextColor(rgb)};
 }
 
 // Celda de las tablas de calor como una "burbuja" circular de tamaño proporcional
@@ -718,22 +734,6 @@ function heatDot(value, max){
   const hc = heatColor(value, max);
   const fontSize = size >= 27 ? 12 : 10.5;
   return `<td><span class="heat-dot" style="width:${size}px; height:${size}px; background:${hc.bg}; color:${hc.fg}; font-size:${fontSize}px;">${value}</span></td>`;
-}
-
-function mix(c1,c2,p){
-  const a = hexToRgb(c1), b = hexToRgb(c2);
-  const r = Math.round(a[0]+(b[0]-a[0])*p);
-  const g = Math.round(a[1]+(b[1]-a[1])*p);
-  const bl = Math.round(a[2]+(b[2]-a[2])*p);
-  return `rgb(${r},${g},${bl})`;
-}
-function hexToRgb(h){ const n = parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
-
-// Degradado de 3 tonos (navy -> dorado -> rojo) para las barras de "más alertas" /
-// "más críticos": más rico visualmente que un simple verde-a-rojo, y sigue
-// leyéndose de forma intuitiva (más intenso el color = más grave).
-function mix3(p){
-  return p < 0.5 ? mix(COLOR_NAVY, COLOR_GOLD, p/0.5) : mix(COLOR_GOLD, COLOR_RED, (p-0.5)/0.5);
 }
 
 // ---------------- Gráficos de barra (Chart.js) para los Top 10 ----------------
@@ -753,7 +753,7 @@ function renderBarChart(containerId, items, maxVal, onBarClick){
   const canvas = container.querySelector('canvas');
   const labels = items.map(i=>i.label);
   const data = items.map(i=>i.value);
-  const colors = items.map(i=> maxVal ? mix3(Math.min(i.value/maxVal,1)) : '#0c2461');
+  const colors = items.map(i=> maxVal ? rgbCss(severityColor(Math.min(i.value/maxVal,1))) : COLOR_NAVY);
 
   if(chartInstances[containerId]){
     const ch = chartInstances[containerId];
@@ -1187,11 +1187,9 @@ async function fetchAndLoadCenso(){
   mapEl.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-family:\'IBM Plex Mono\',monospace;font-size:13px;gap:8px;"><div class="spinner"></div>Cargando censo de activos…</div>';
   setSourceStatus('Censo', 'loading', 'cargando…');
   try{
-    const sep = DATA_SOURCE_URL_CENSO.includes('?') ? '&' : '?';
-    const res = await fetch(DATA_SOURCE_URL_CENSO + sep + 'cachebust=' + Date.now());
-    if(!res.ok) throw new Error('No se pudo descargar el archivo de censo (HTTP ' + res.status + ')');
-    fechaArchivoCenso = getFechaArchivo(res);
-    const buf = await res.arrayBuffer();
+    const { blob, fecha } = await downloadFromStorage(STORAGE_PATH_CENSO);
+    fechaArchivoCenso = fecha;
+    const buf = await blob.arrayBuffer();
     const wb = XLSX.read(buf, {type:'array', cellDates:true});
     // Los encabezados reales de este archivo están en la FILA 2 (no en la 1,
     // que trae títulos combinados). Por eso usamos range:1 (0-indexado).
@@ -1690,6 +1688,38 @@ if(typeof window.supabase === 'undefined'){
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { storage: window.sessionStorage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
 });
+
+// =====================================================================
+// Descarga de archivos desde el bucket PRIVADO de Supabase Storage
+// (STORAGE_BUCKET / STORAGE_PATH_* se configuran en index.html). Reemplaza
+// al fetch() directo a GitHub: ahora solo alguien con sesión iniciada puede
+// traerse los archivos, porque supabaseClient.storage usa el mismo token de
+// sesión que ya generó el login de arriba, y el bucket exige rol
+// "authenticated" (ver política creada en Supabase → Storage → Policies).
+// =====================================================================
+async function downloadFromStorage(path){
+  // list() nos da la fecha real de última modificación del archivo en el
+  // bucket — el equivalente al header 'Last-Modified' que antes leíamos de
+  // GitHub — para poder seguir mostrando "archivo del [fecha]" en la UI.
+  const { data: listing, error: listErr } = await supabaseClient
+    .storage.from(STORAGE_BUCKET)
+    .list('', { search: path });
+  if(listErr){
+    throw new Error(`No se pudo consultar el bucket "${STORAGE_BUCKET}" de Supabase: ${listErr.message}`);
+  }
+  const meta = listing?.find(f => f.name === path);
+  const fechaRaw = meta?.updated_at || meta?.created_at || null;
+  const fecha = fechaRaw && !isNaN(new Date(fechaRaw).getTime()) ? new Date(fechaRaw) : null;
+
+  const { data: blob, error: dlErr } = await supabaseClient
+    .storage.from(STORAGE_BUCKET)
+    .download(path);
+  if(dlErr){
+    throw new Error(`No se pudo descargar "${path}" del bucket "${STORAGE_BUCKET}": ${dlErr.message}. Revisa que el archivo exista ahí (con ese nombre exacto) y que la política de acceso permita SELECT a usuarios authenticated.`);
+  }
+
+  return { blob, fecha, ext: path.split('.').pop().toLowerCase() };
+}
 
 const loginScreen = document.getElementById('loginScreen');
 const appWrap = document.getElementById('appWrap');
